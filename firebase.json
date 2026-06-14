@@ -1,0 +1,55 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "flux-virtual",
+          "appId": "1:1062341883201:android:f604ae20dd25bda885ddc0",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "flux-virtual",
+          "appId": "1:1062341883201:ios:f9860771478189b185ddc0",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "flux-virtual",
+          "appId": "1:1062341883201:ios:f9860771478189b185ddc0",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "flux-virtual",
+          "configurations": {
+            "android": "1:1062341883201:android:f604ae20dd25bda885ddc0",
+            "ios": "1:1062341883201:ios:f9860771478189b185ddc0",
+            "macos": "1:1062341883201:ios:f9860771478189b185ddc0",
+            "web": "1:1062341883201:web:b8c86b9f92eda61985ddc0",
+            "windows": "1:1062341883201:web:8952b05e12aed2a985ddc0"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}
