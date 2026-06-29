@@ -63,7 +63,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isLast = _currentPage == _pages.length - 1;
 
     return Scaffold(
-      backgroundColor: AppColors.warmBeige,
       body: SafeArea(
         child: Column(
           children: [
@@ -132,7 +131,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: Text(
                             'SKIP',
                             style: TextStyle(
-                              color: AppColors.darkBrown.withOpacity(0.5),
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                               fontWeight: FontWeight.w600,
                               letterSpacing: 1,
                             ),
@@ -189,13 +188,12 @@ class _OnboardingPage extends StatelessWidget {
             child: Container(
               height: 240,
               width: 240,
-              // padding: const EdgeInsets.all(40),
               decoration: BoxDecoration(
-                color: AppColors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.darkBrown.withOpacity(0.1),
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -221,7 +219,7 @@ class _OnboardingPage extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.darkBrown,
+                    color: Theme.of(context).colorScheme.onSurface,
                     height: 1.25,
                   ),
                 ),
@@ -231,7 +229,7 @@ class _OnboardingPage extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 15,
-                    color: AppColors.darkBrown.withOpacity(0.55),
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55),
                     height: 1.6,
                   ),
                 ),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flux_virtual/Theme.dart';
-import 'package:flux_virtual/services/api_service.dart';
+import 'package:flux_virtual/screens/calling_screen.dart';
+import 'package:flux_virtual/screens/chatscreen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -18,6 +19,7 @@ class _ContactsState extends State<Contacts> {
   bool _isLoading = true;
   bool _permissionDenied = false;
   final TextEditingController _searchController = TextEditingController();
+  String? _loadingPhone; // tracks which number has an in-progress action
 
   @override
   void initState() {
@@ -86,6 +88,130 @@ class _ContactsState extends State<Contacts> {
     });
   }
 
+  // ── Fetch the user's active virtual number ──────────────────
+  Future<String?> _getActiveNumber() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
+
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('numbers')
+        .where('active', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null;
+    return snap.docs.first.data()['phoneNumber'] as String?;
+  }
+
+  // ── Call icon tapped from list ──────────────────────────────
+  Future<void> _callContact(Contact contact) async {
+    if (contact.phones.isEmpty) return;
+    final phone = contact.phones.first.number;
+
+    setState(() => _loadingPhone = phone);
+
+    try {
+      final fromNumber = await _getActiveNumber();
+      if (fromNumber == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'You need a virtual number to make calls. Get one in the Numbers tab.',
+              ),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CallingScreen(
+              toNumber: phone,
+              fromNumber: fromNumber,
+              contactName: contact.displayName ?? '',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingPhone = null);
+    }
+  }
+
+  // ── Message icon tapped from list ───────────────────────────
+  Future<void> _openChatWith(Contact contact) async {
+    if (contact.phones.isEmpty) return;
+    final phone = contact.phones.first.number;
+
+    setState(() => _loadingPhone = phone);
+
+    try {
+      final fromNumber = await _getActiveNumber();
+      if (fromNumber == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'You need a virtual number to send messages. Get one in the Numbers tab.',
+              ),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                Chatscreen(otherNumber: phone, fromNumber: fromNumber),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Something went wrong. Try again.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingPhone = null);
+    }
+  }
+
   void _showContactSheet(Contact contact) {
     final phones = contact.phones;
     if (phones.isEmpty) {
@@ -124,28 +250,17 @@ class _ContactsState extends State<Contacts> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.contacts_outlined,
-                size: 64,
-    
-              ),
+              const Icon(Icons.contacts_outlined, size: 64),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'Contacts permission denied',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-            
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Please allow contacts access in your device settings to use this feature.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-        
-                ),
+                style: TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 24),
               ElevatedButton(
@@ -166,14 +281,8 @@ class _ContactsState extends State<Contacts> {
     }
 
     if (_contacts.isEmpty) {
-      return Center(
-        child: Text(
-          'No contacts found',
-          style: TextStyle(
-    
-            fontSize: 16,
-          ),
-        ),
+      return const Center(
+        child: Text('No contacts found', style: TextStyle(fontSize: 16)),
       );
     }
 
@@ -186,7 +295,7 @@ class _ContactsState extends State<Contacts> {
             onChanged: _search,
             decoration: InputDecoration(
               hintText: 'Search contacts',
-              prefixIcon: Icon(Icons.search, color: AppColors.softOrange),
+              prefixIcon: const Icon(Icons.search, color: AppColors.softOrange),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
@@ -214,7 +323,7 @@ class _ContactsState extends State<Contacts> {
               '${_filtered.length} contacts',
               style: TextStyle(
                 fontSize: 12,
-               
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
               ),
             ),
           ),
@@ -236,13 +345,19 @@ class _ContactsState extends State<Contacts> {
                         .toUpperCase()
                   : '?';
 
+              final phone = contact.phones.isNotEmpty
+                  ? contact.phones.first.number
+                  : null;
+              final isLoading = _loadingPhone == phone;
+              final anyLoading = _loadingPhone != null;
+
               return ListTile(
                 onTap: () => _showContactSheet(contact),
                 leading: CircleAvatar(
                   backgroundColor: AppColors.softOrange.withOpacity(0.15),
                   child: Text(
                     initials,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.softOrange,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -256,34 +371,67 @@ class _ContactsState extends State<Contacts> {
                     fontSize: 15,
                   ),
                 ),
-                subtitle: contact.phones.isNotEmpty
+                subtitle: phone != null
                     ? Text(
-                        contact.phones.first.number,
+                        phone,
                         style: TextStyle(
                           fontSize: 13,
-                        
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                         ),
                       )
                     : null,
-                trailing: contact.phones.isNotEmpty
+                trailing: phone != null
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.call,
-                              color: Colors.green,
-                              size: 22,
-                            ),
-                            onPressed: () => _showContactSheet(contact),
+                          // ── Call icon ────────────────────
+                          SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: isLoading
+                                ? const Padding(
+                                    padding: EdgeInsets.all(10),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.green,
+                                    ),
+                                  )
+                                : IconButton(
+                                    icon: const Icon(
+                                      Icons.call,
+                                      color: Colors.green,
+                                      size: 22,
+                                    ),
+                                    onPressed: anyLoading
+                                        ? null
+                                        : () => _callContact(contact),
+                                  ),
                           ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.message,
-                              color: AppColors.softOrange,
-                              size: 22,
-                            ),
-                            onPressed: () => _showContactSheet(contact),
+
+                          const SizedBox(width: 4),
+
+                          // ── Message icon ─────────────────
+                          SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: isLoading
+                                ? const Padding(
+                                    padding: EdgeInsets.all(10),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.softOrange,
+                                    ),
+                                  )
+                                : IconButton(
+                                    icon: const Icon(
+                                      Icons.message,
+                                      color: AppColors.softOrange,
+                                      size: 22,
+                                    ),
+                                    onPressed: anyLoading
+                                        ? null
+                                        : () => _openChatWith(contact),
+                                  ),
                           ),
                         ],
                       )
@@ -297,9 +445,11 @@ class _ContactsState extends State<Contacts> {
   }
 }
 
+// ── Contact action bottom sheet ───────────────────────────────
 class _ContactActionSheet extends StatefulWidget {
   final Contact contact;
-  const _ContactActionSheet({required this.contact, super.key});
+
+  const _ContactActionSheet({required this.contact});
 
   @override
   State<_ContactActionSheet> createState() => _ContactActionSheetState();
@@ -307,6 +457,7 @@ class _ContactActionSheet extends StatefulWidget {
 
 class _ContactActionSheetState extends State<_ContactActionSheet> {
   bool _isCalling = false;
+  bool _isMessaging = false;
   String? _errorMessage;
   String? _selectedPhone;
 
@@ -318,6 +469,23 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
     }
   }
 
+  // ── Fetch active virtual number ─────────────────────────────
+  Future<String?> _getActiveNumber() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
+
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('numbers')
+        .where('active', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null;
+    return snap.docs.first.data()['phoneNumber'] as String?;
+  }
+
   Future<void> _call() async {
     if (_selectedPhone == null) return;
 
@@ -327,56 +495,76 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
     });
 
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
-
-      final numbersSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('numbers')
-          .where('active', isEqualTo: true)
-          .limit(1)
-          .get();
-
-      if (numbersSnap.docs.isEmpty) {
+      final fromNumber = await _getActiveNumber();
+      if (fromNumber == null) {
         setState(
           () => _errorMessage = 'You need a virtual number to make calls.',
         );
         return;
       }
 
-      final fromNumber = numbersSnap.docs.first.data()['phoneNumber'] as String;
-
-      final result = await ApiService.makeCall(
-        to: _selectedPhone!,
-        from: fromNumber,
-      );
-
-      if (result['success'] == true) {
-        if (mounted) Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Calling ${widget.contact.displayName ?? ''}...'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+      if (mounted) {
+        final nav = Navigator.of(context);
+        nav.pop(); // close sheet
+        nav.push(
+          MaterialPageRoute(
+            builder: (_) => CallingScreen(
+              toNumber: _selectedPhone!,
+              fromNumber: fromNumber,
+              contactName: widget.contact.displayName ?? '',
             ),
           ),
         );
-      } else {
-        setState(() => _errorMessage = result['error'] ?? 'Call failed.');
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Something went wrong.');
+      setState(() => _errorMessage = 'Error: ${e.toString()}');
     } finally {
       if (mounted) setState(() => _isCalling = false);
+    }
+  }
+
+  Future<void> _message() async {
+    if (_selectedPhone == null) return;
+
+    setState(() {
+      _isMessaging = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final fromNumber = await _getActiveNumber();
+      if (fromNumber == null) {
+        setState(
+          () =>
+              _errorMessage = 'You need a virtual number to send messages.',
+        );
+        return;
+      }
+
+      if (mounted) {
+        // Capture navigator before async-induced disposal
+        final nav = Navigator.of(context);
+        nav.pop(); // close sheet
+        nav.push(
+          MaterialPageRoute(
+            builder: (_) => Chatscreen(
+              otherNumber: _selectedPhone!,
+              fromNumber: fromNumber,
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      setState(() => _errorMessage = 'Something went wrong.');
+    } finally {
+      if (mounted) setState(() => _isMessaging = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final name = widget.contact.displayName ?? '';
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     final initials = name.isNotEmpty
         ? name
               .trim()
@@ -386,6 +574,8 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
               .join()
               .toUpperCase()
         : '?';
+
+    final isBusy = _isCalling || _isMessaging;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -400,7 +590,7 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: AppColors.darkBrown.withOpacity(0.2),
+              color: onSurface.withOpacity(0.2),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -412,7 +602,7 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
             backgroundColor: AppColors.softOrange.withOpacity(0.15),
             child: Text(
               initials,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.softOrange,
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
@@ -435,14 +625,16 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
               items: widget.contact.phones.map((p) {
                 return DropdownMenuItem(value: p.number, child: Text(p.number));
               }).toList(),
-              onChanged: (val) => setState(() => _selectedPhone = val),
+              onChanged: isBusy
+                  ? null
+                  : (val) => setState(() => _selectedPhone = val),
             )
           else if (widget.contact.phones.isNotEmpty)
             Text(
               widget.contact.phones.first.number,
               style: TextStyle(
                 fontSize: 14,
-                color: AppColors.darkBrown.withOpacity(0.5),
+                color: onSurface.withOpacity(0.5),
               ),
             ),
 
@@ -468,10 +660,11 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
+              // ── Call button ─────────────────────────────
               Column(
                 children: [
                   GestureDetector(
-                    onTap: _isCalling ? null : _call,
+                    onTap: isBusy ? null : _call,
                     child: Container(
                       width: 60,
                       height: 60,
@@ -499,12 +692,11 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
                 ],
               ),
 
+              // ── Message button ──────────────────────────
               Column(
                 children: [
                   GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
+                    onTap: isBusy ? null : _message,
                     child: Container(
                       width: 60,
                       height: 60,
@@ -512,11 +704,19 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
                         color: AppColors.softOrange.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        Icons.message,
-                        color: AppColors.softOrange,
-                        size: 28,
-                      ),
+                      child: _isMessaging
+                          ? const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.softOrange,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.message,
+                              color: AppColors.softOrange,
+                              size: 28,
+                            ),
                     ),
                   ),
                   const SizedBox(height: 6),

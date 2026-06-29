@@ -5,6 +5,7 @@ import 'package:flux_virtual/Auth/loginscreen.dart';
 import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/screens/Appearance.dart';
 import 'package:flux_virtual/screens/contact-support.dart';
+import 'package:flux_virtual/screens/notification.dart';
 import 'package:flux_virtual/screens/privacypolicy.dart';
 import 'package:flux_virtual/screens/settings.dart';
 import 'package:flux_virtual/services/review_service.dart';
@@ -100,7 +101,38 @@ class _ProfileState extends State<Profile> {
 
     return Scaffold(
       appBar: AppBar(
-         automaticallyImplyLeading: false,title: const Text('Profile')),
+        automaticallyImplyLeading: false,
+        title: const Text('Profile'),
+        actions: [
+          StreamBuilder<QuerySnapshot>(
+            stream: uid == null
+                ? null
+                : FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(uid)
+                    .collection('notifications')
+                    .where('read', isEqualTo: false)
+                    .snapshots(),
+            builder: (context, snap) {
+              final unread = snap.data?.docs.length ?? 0;
+              return IconButton(
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  backgroundColor: AppColors.softOrange,
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationScreen(),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: uid == null
           ? const Center(child: CircularProgressIndicator())
           : StreamBuilder<DocumentSnapshot>(
@@ -199,14 +231,12 @@ class _ProfileState extends State<Profile> {
                     const SizedBox(height: 28),
 
                     // ── Menu list ───────────────────────────
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceVariant
-                            .withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                    Material(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant
+                          .withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(14),
                       child: Column(
                         children: List.generate(_menuItems.length, (index) {
                           final item = _menuItems[index];
@@ -266,14 +296,12 @@ class _ProfileState extends State<Profile> {
                     const SizedBox(height: 16),
 
                     // ── Log out ─────────────────────────────
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceVariant
-                            .withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                    Material(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant
+                          .withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(14),
                       child: ListTile(
                         onTap: _showLogoutDialog,
                         leading: const Icon(

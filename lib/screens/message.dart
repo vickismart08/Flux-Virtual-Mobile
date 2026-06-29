@@ -1,8 +1,10 @@
+import 'package:flag/flag_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/screens/chatscreen.dart';
+import 'package:flux_virtual/screens/notification.dart';
 import 'package:remixicon/remixicon.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 
@@ -23,7 +25,25 @@ class _MessagesState extends State<Messages> {
     super.dispose();
   }
 
+  String _fmtConvTime(dynamic createdAt) {
+    if (createdAt == null) return '';
+    final dt = createdAt is Timestamp
+        ? createdAt.toDate().toLocal()
+        : DateTime.tryParse(createdAt.toString())?.toLocal();
+    if (dt == null) return '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDay = DateTime(dt.year, dt.month, dt.day);
+    if (msgDay == today) {
+      return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+    }
+    if (msgDay == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[dt.month - 1]} ${dt.day}';
+  }
+
   // group messages by conversation (by phone number)
+  // Each entry's value includes '_hasUnread' = true if any inbound msg is unread
   Map<String, Map<String, dynamic>> _groupMessages(
     List<QueryDocumentSnapshot> docs,
   ) {
@@ -34,12 +54,16 @@ class _MessagesState extends State<Messages> {
       final direction = data['direction'] as String? ?? '';
       final from = data['from'] as String? ?? '';
       final to = data['to'] as String? ?? '';
-
-      // the other party's number
       final otherNumber = direction == 'inbound' ? from : to;
 
       if (!conversations.containsKey(otherNumber)) {
-        conversations[otherNumber] = data;
+        conversations[otherNumber] = Map<String, dynamic>.from(data)
+          ..['_hasUnread'] = false;
+      }
+
+      // Mark conversation unread if any inbound message hasn't been read
+      if (direction == 'inbound' && data['read'] != true) {
+        conversations[otherNumber]!['_hasUnread'] = true;
       }
     }
 
@@ -63,6 +87,33 @@ class _MessagesState extends State<Messages> {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Messages'),
+        leading: uid == null
+            ? null
+            : StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(uid)
+                    .collection('notifications')
+                    .where('read', isEqualTo: false)
+                    .snapshots(),
+                builder: (context, snap) {
+                  final unread = snap.data?.docs.length ?? 0;
+                  return IconButton(
+                    icon: Badge(
+                      isLabelVisible: unread > 0,
+                      label: Text('$unread'),
+                      backgroundColor: AppColors.softOrange,
+                      child: const Icon(Icons.notifications_outlined),
+                    ),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationScreen(),
+                      ),
+                    ),
+                  );
+                },
+              ),
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 15.0),
@@ -117,10 +168,11 @@ class _MessagesState extends State<Messages> {
               child: uid == null
                   ? const Center(child: CircularProgressIndicator())
                   : StreamBuilder<QuerySnapshot>(
+                      // No orderBy — avoids composite index requirement.
+                      // _groupMessages picks the latest message per thread.
                       stream: FirebaseFirestore.instance
                           .collection('messages')
                           .where('userId', isEqualTo: uid)
-                          .orderBy('createdAt', descending: true)
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
@@ -130,7 +182,27 @@ class _MessagesState extends State<Messages> {
                           );
                         }
 
-                        final docs = snapshot.data?.docs ?? [];
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Error: ${snapshot.error}',
+                              style: const TextStyle(color: Colors.redAccent),
+                            ),
+                          );
+                        }
+
+                        // Sort descending by createdAt before grouping
+                        final docs = List<QueryDocumentSnapshot>.from(
+                          snapshot.data?.docs ?? [],
+                        );
+                        docs.sort((a, b) {
+                          final aT = (a.data() as Map)['createdAt'] as Timestamp?;
+                          final bT = (b.data() as Map)['createdAt'] as Timestamp?;
+                          if (aT == null && bT == null) return 0;
+                          if (aT == null) return 1;
+                          if (bT == null) return -1;
+                          return bT.compareTo(aT); // descending
+                        });
                         final conversations = _groupMessages(docs);
 
                         if (conversations.isEmpty) {
@@ -178,36 +250,82 @@ class _MessagesState extends State<Messages> {
                             final direction =
                                 data['direction'] as String? ?? '';
                             final from = data['from'] as String? ?? '';
+                            final hasUnread = data['_hasUnread'] == true;
+                            final timeLabel = _fmtConvTime(data['createdAt']);
 
                             return Card(
                               margin: const EdgeInsets.symmetric(vertical: 6),
                               child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: AppColors.softOrange
-                                      .withOpacity(0.15),
-                                  child: Text(
-                                    number.isNotEmpty
-                                        ? number[number.length - 1]
-                                        : '?',
-                                    style: TextStyle(
-                                      color: AppColors.softOrange,
-                                      fontWeight: FontWeight.bold,
+                                leading: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: AppColors.softOrange
+                                          .withOpacity(0.15),
+                                      child: Text(
+                                        number.isNotEmpty
+                                            ? number[number.length - 1]
+                                            : '?',
+                                        style: TextStyle(
+                                          color: AppColors.softOrange,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (hasUnread)
+                                      Positioned(
+                                        right: -2,
+                                        top: -2,
+                                        child: Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: Colors.green,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Theme.of(context).scaffoldBackgroundColor,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                title: Text(
-                                  number,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                title: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        number,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    if (timeLabel.isNotEmpty)
+                                      Text(
+                                        timeLabel,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: hasUnread
+                                              ? AppColors.softOrange
+                                              : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 subtitle: Text(
                                   '${direction == 'inbound' ? '' : 'You: '}$body',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: AppColors.darkBrown.withOpacity(0.5),
+                                    color: hasUnread
+                                        ? Theme.of(context).colorScheme.onSurface
+                                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                                     fontSize: 13,
+                                    fontWeight: hasUnread
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
                                   ),
                                 ),
                                 onTap: () {
@@ -311,60 +429,85 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
         .doc(uid)
         .collection('numbers')
         .where('active', isEqualTo: true)
-        .limit(1)
         .get();
 
     if (numbersSnap.docs.isEmpty) {
-  if (mounted) {
-    Navigator.pop(context);
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text('No Virtual Number'),
-        content: const Text(
-          'You need a virtual number to send messages. Go to the Numbers tab to get one.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.darkBrown),
+      if (mounted) {
+        Navigator.pop(context);
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.softOrange,
-              foregroundColor: AppColors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+            title: const Text('No Virtual Number'),
+            content: const Text(
+              'You need a virtual number to send messages. Go to the Numbers tab to get one.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.darkBrown),
+                ),
               ),
-            ),
-            child: const Text('Get a Number'),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.softOrange,
+                  foregroundColor: AppColors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Get a Number'),
+              ),
+            ],
           ),
-        ],
+        );
+      }
+      return;
+    }
+
+    // Only one number — use it directly
+    if (numbersSnap.docs.length == 1) {
+      final fromNumber =
+          numbersSnap.docs.first.data()['phoneNumber'] as String;
+      if (mounted) {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                Chatscreen(otherNumber: toNumber, fromNumber: fromNumber),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Multiple numbers — ask which one to send from
+    if (!mounted) return;
+    final fromNumber = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PickFromNumberSheet(
+        numbers: numbersSnap.docs
+            .map((d) => d.data()['phoneNumber'] as String)
+            .toList(),
       ),
     );
-  }
-  return;
-}
 
-    final fromNumber = numbersSnap.docs.first.data()['phoneNumber'] as String;
-
-    if (mounted) {
-      Navigator.pop(context);
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              Chatscreen(otherNumber: toNumber, fromNumber: fromNumber),
-        ),
-      );
-    }
+    if (fromNumber == null || !mounted) return;
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            Chatscreen(otherNumber: toNumber, fromNumber: fromNumber),
+      ),
+    );
   }
 
   @override
@@ -382,7 +525,7 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: AppColors.darkBrown.withOpacity(0.2),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -396,7 +539,7 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.darkBrown,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -418,7 +561,7 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
                     controller: _numberController,
                     keyboardType: TextInputType.phone,
                     decoration: InputDecoration(
-                      hintText: 'Enter phone number',
+                      hintText: '+1234567890 (include country code)',
                       prefixIcon: const Icon(Icons.dialpad),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -511,6 +654,66 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
                     },
                   ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PickFromNumberSheet extends StatelessWidget {
+  const _PickFromNumberSheet({required this.numbers});
+
+  final List<String> numbers;
+
+  String _isoFromE164(String number) {
+    if (number.startsWith('+44')) return 'GB';
+    if (number.startsWith('+234')) return 'NG';
+    if (number.startsWith('+61')) return 'AU';
+    if (number.startsWith('+49')) return 'DE';
+    if (number.startsWith('+33')) return 'FR';
+    if (number.startsWith('+31')) return 'NL';
+    if (number.startsWith('+46')) return 'SE';
+    if (number.startsWith('+1')) return 'US';
+    return 'US';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              'Send from which number?',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+          ...numbers.map((phoneNum) => ListTile(
+                leading: Flag.fromString(
+                  _isoFromE164(phoneNum),
+                  height: 24,
+                  width: 36,
+                ),
+                title: Text(phoneNum,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () => Navigator.pop(context, phoneNum),
+              )),
+          const SizedBox(height: 16),
         ],
       ),
     );

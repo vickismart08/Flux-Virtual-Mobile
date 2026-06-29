@@ -84,8 +84,9 @@ class _SignupScreenState extends State<SignupScreen> {
      
      
 await credential.user!.sendEmailVerification();
-await ApiService.sendWelcomeEmail(); 
+// Subscribe to topics first so the welcome push notification has a target
 await NotificationService.saveToken(credential.user!.uid);
+await ApiService.sendWelcomeEmail();
 
 
 if (mounted) {
@@ -122,8 +123,8 @@ if (mounted) {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: AppColors.warmBeige,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -138,7 +139,7 @@ if (mounted) {
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.darkBrown,
+                    color: onSurface,
                   ),
                 ),
               ),
@@ -148,7 +149,7 @@ if (mounted) {
                   'Fill in your details to get started',
                   style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.darkBrown.withOpacity(0.5),
+                    color: onSurface.withOpacity(0.5),
                   ),
                 ),
               ),
@@ -296,14 +297,14 @@ if (mounted) {
                     text: TextSpan(
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.darkBrown.withOpacity(0.5),
+                        color: onSurface.withOpacity(0.5),
                       ),
                       children: [
                         const TextSpan(text: 'Already have an account? '),
                         TextSpan(
                           text: 'Log In',
                           style: TextStyle(
-                            color: AppColors.darkBrown,
+                            color: onSurface,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -333,7 +334,7 @@ class _Label extends StatelessWidget {
       style: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        color: AppColors.darkBrown,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }

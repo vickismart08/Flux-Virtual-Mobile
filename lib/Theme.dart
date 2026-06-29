@@ -31,7 +31,16 @@ class AppTheme {
 
     scaffoldBackgroundColor: AppColors.warmBeige,
 
-    primaryTextTheme: GoogleFonts.soraTextTheme().apply(
+    textTheme: GoogleFonts.interTextTheme(
+      const TextTheme(
+        bodyLarge:  TextStyle(color: AppColors.darkBrown, fontSize: 16),
+        bodyMedium: TextStyle(color: AppColors.darkBrown, fontSize: 14),
+        headlineLarge:  TextStyle(color: AppColors.darkBrown, fontSize: 32, fontWeight: FontWeight.bold),
+        headlineMedium: TextStyle(color: AppColors.darkBrown, fontSize: 24, fontWeight: FontWeight.w600),
+      ),
+    ),
+
+    primaryTextTheme: GoogleFonts.interTextTheme().apply(
       bodyColor: AppColors.darkBrown,
       displayColor: AppColors.darkBrown,
     ),
@@ -59,27 +68,6 @@ class AppTheme {
         color: AppColors.darkBrown,
         fontSize: 22,
         fontWeight: FontWeight.bold,
-      ),
-    ),
-
-    textTheme: const TextTheme(
-      bodyLarge: TextStyle(
-        color: AppColors.darkBrown,
-        fontSize: 16,
-      ),
-      bodyMedium: TextStyle(
-        color: AppColors.darkBrown,
-        fontSize: 14,
-      ),
-      headlineLarge: TextStyle(
-        color: AppColors.darkBrown,
-        fontSize: 32,
-        fontWeight: FontWeight.bold,
-      ),
-      headlineMedium: TextStyle(
-        color: AppColors.darkBrown,
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
       ),
     ),
 
@@ -143,7 +131,16 @@ class AppTheme {
    static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     scaffoldBackgroundColor: AppColors.darkBg,
-    primaryTextTheme: GoogleFonts.soraTextTheme().apply(
+    textTheme: GoogleFonts.interTextTheme(
+      const TextTheme(
+        bodyLarge:  TextStyle(color: AppColors.white, fontSize: 16),
+        bodyMedium: TextStyle(color: AppColors.white, fontSize: 14),
+        headlineLarge:  TextStyle(color: AppColors.white, fontSize: 32, fontWeight: FontWeight.bold),
+        headlineMedium: TextStyle(color: AppColors.white, fontSize: 24, fontWeight: FontWeight.w600),
+      ),
+    ),
+
+    primaryTextTheme: GoogleFonts.interTextTheme().apply(
       bodyColor: AppColors.white,
       displayColor: AppColors.white,
     ),
@@ -167,19 +164,6 @@ class AppTheme {
         color: AppColors.white,
         fontSize: 22,
         fontWeight: FontWeight.bold,
-      ),
-    ),
-    textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: AppColors.white, fontSize: 16),
-      bodyMedium: TextStyle(color: AppColors.white, fontSize: 14),
-      headlineLarge: TextStyle(
-        color: AppColors.white,
-        fontSize: 32,
-        fontWeight: FontWeight.bold,
-      ), headlineMedium: TextStyle(
-        color: AppColors.white,
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(

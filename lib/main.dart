@@ -1,22 +1,38 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flux_virtual/Auth/splash_screen.dart';
 import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/firebase_options.dart';
+import 'package:flux_virtual/services/keep_alive_service.dart';
 import 'package:flux_virtual/services/notification_service.dart';
+import 'package:flux_virtual/services/remote_config_service.dart';
+import 'package:flux_virtual/services/voice_service.dart';
 
 final ThemeNotifier themeNotifier = ThemeNotifier();
 
-void main() async{
-   WidgetsFlutterBinding.ensureInitialized();
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
   await NotificationService.initialize();
 
-  // handle background message
+  // Re-subscribe to FCM topics if user is already logged in (e.g. after app update)
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser != null) {
+    await NotificationService.saveToken(currentUser.uid);
+  }
+
+  await RemoteConfigService.initialize();
+  KeepAliveService.start();
+
+  // Request READ_PHONE_NUMBERS permission, register the Android phone account,
+  // and open Settings if the user hasn't enabled it yet (one-time setup).
+  await VoiceService.setupAndroid();
+
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   runApp(const MyApp());

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/screens/paystack_webview.dart';
 import 'package:flux_virtual/services/api_service.dart';
+import 'package:flux_virtual/services/remote_config_service.dart';
 import 'package:remixicon/remixicon.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -174,71 +175,92 @@ class _CreditState extends State<Credit> {
                                 ),
                               ),
                             )
+                          // replace the else block in the balance card
                           else
-                            GestureDetector(
-                              onTap: _isLoadingSession ? null : _openIOSPayment,
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: _isLoadingSession
-                                    ? const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              color: AppColors.white,
-                                              strokeWidth: 2,
-                                            ),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            'Loading...',
-                                            style: TextStyle(
-                                              color: AppColors.white,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.info_outline,
-                                            color: AppColors.white,
-                                            size: 16,
-                                          ),
-                                          SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Tap to add credit via our website',
-                                              style: TextStyle(
-                                                color: AppColors.white,
-                                                fontSize: 13,
-                                                decoration:
-                                                    TextDecoration.underline,
-                                                decorationColor:
-                                                    AppColors.white,
-                                              ),
-                                            ),
-                                          ),
-                                          Icon(
-                                            Icons.arrow_forward_ios,
-                                            color: AppColors.white,
-                                            size: 14,
-                                          ),
-                                        ],
+                            RemoteConfigService.iosPaymentEnabled
+                                ? GestureDetector(
+                                    onTap: _isLoadingSession
+                                        ? null
+                                        : _openIOSPayment,
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
-                              ),
-                            ),
+                                      child: _isLoadingSession
+                                          ? const Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        color: AppColors.white,
+                                                        strokeWidth: 2,
+                                                      ),
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text(
+                                                  'Loading...',
+                                                  style: TextStyle(
+                                                    color: AppColors.white,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : const Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.info_outline,
+                                                  color: AppColors.white,
+                                                  size: 16,
+                                                ),
+                                                SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Tap to add credit via our website',
+                                                    style: TextStyle(
+                                                      color: AppColors.white,
+                                                      fontSize: 13,
+                                                      decoration: TextDecoration
+                                                          .underline,
+                                                      decorationColor:
+                                                          AppColors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Icon(
+                                                  Icons.arrow_forward_ios,
+                                                  color: AppColors.white,
+                                                  size: 14,
+                                                ),
+                                              ],
+                                            ),
+                                    ),
+                                  )
+                                : Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.white.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Text(
+                                      'To add credit, visit fluxvirtual.app',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: AppColors.white,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
                         ],
                       ),
                     ),
@@ -520,9 +542,7 @@ class _AddCreditSheetState extends State<_AddCreditSheet> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: isSelected
-                              ? AppColors.softOrange
-                              : onSurface,
+                          color: isSelected ? AppColors.softOrange : onSurface,
                         ),
                       ),
                       if (bonus.isNotEmpty)
@@ -582,10 +602,7 @@ class _AddCreditSheetState extends State<_AddCreditSheet> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      style: TextStyle(
-                        color: onSurface,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: onSurface, fontSize: 14),
                       onTap: () => setState(() {
                         _useCustom = true;
                         _selectedIndex = -1;

@@ -3,13 +3,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 
-// handle background messages
+// Background handler — the OS already shows the notification automatically
+// because FCM messages include a `notification` payload. This handler is
+// kept only to satisfy the FirebaseMessaging.onBackgroundMessage requirement.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await NotificationService.showLocalNotification(
-    title: message.notification?.title ?? 'Flux Virtual',
-    body: message.notification?.body ?? '',
-  );
+  // Intentionally empty — do NOT call showLocalNotification here.
+  // The system notification is already shown by the OS from the FCM payload.
 }
 
 class NotificationService {
@@ -22,6 +22,13 @@ class NotificationService {
   static Future<void> initialize() async {
     // request permission
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
+
+    // iOS: allow FCM notifications to show while app is in foreground
+    await _messaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
     // setup local notifications
     const androidSettings = AndroidInitializationSettings(
@@ -57,15 +64,15 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(androidChannel);
+    // Foreground messages: the OS does NOT auto-show these, so we display
+    // a local notification manually. Background messages are handled by
+    // firebaseMessagingBackgroundHandler (registered in main.dart).
     FirebaseMessaging.onMessage.listen((message) {
       showLocalNotification(
         title: message.notification?.title ?? 'Flux Virtual',
         body: message.notification?.body ?? '',
       );
     });
-
-    // background message handler
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   }
 
   // ── Show local notification ──────────────────────────────
@@ -116,16 +123,13 @@ class NotificationService {
     }
   }
 
-  // ── Save token to Firestore ──────────────────────────────────
+  // ── Subscribe user to their FCM topics ──────────────────────
+  // Topic subscription works independently of the APNS/FCM token — Firebase
+  // queues it internally and delivers once registration completes.
   static Future<void> saveToken(String uid) async {
     try {
-      final token = await getToken();
-      if (token != null) {
-        await _messaging.subscribeToTopic('user_$uid');
-        await _messaging.subscribeToTopic(
-          'all_users',
-        ); // ✅ subscribe to all users topic
-      }
+      await _messaging.subscribeToTopic('user_$uid');
+      await _messaging.subscribeToTopic('all_users');
     } catch (_) {}
   }
 }

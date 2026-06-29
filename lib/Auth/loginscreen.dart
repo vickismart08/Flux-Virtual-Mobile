@@ -10,6 +10,7 @@ import 'package:flux_virtual/services/notification_service.dart';
 import 'package:flux_virtual/widget/input_field.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -156,8 +157,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: AppColors.warmBeige,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -171,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.darkBrown,
+                  color: onSurface,
                 ),
               ),
               const SizedBox(height: 8),
@@ -179,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 'Sign in to continue',
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.darkBrown.withOpacity(0.5),
+                  color: onSurface.withOpacity(0.5),
                 ),
               ),
 
@@ -296,14 +297,13 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 "Don't have an account yet?",
                 style: TextStyle(
-                  color: AppColors.darkBrown.withOpacity(0.5),
+                  color: onSurface.withOpacity(0.5),
                   fontSize: 13,
                 ),
               ),
 
               const SizedBox(height: 12),
 
-              
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -313,33 +313,31 @@ class _LoginScreenState extends State<LoginScreen> {
                     MaterialPageRoute(builder: (_) => const SignupScreen()),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor:Theme.of(
-                              context,
-                            ).colorScheme.onSurface,
-                          
-                    side: BorderSide(
-                        color: AppColors.darkBrown.withOpacity(0.2)),
-                    backgroundColor: AppColors.white,
+                    foregroundColor: onSurface,
+                    side: BorderSide(color: onSurface.withOpacity(0.2)),
+                    backgroundColor: Theme.of(context).colorScheme.surface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Create an account',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.darkBrown),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: onSurface,
+                    ),
                   ),
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              
               Row(
                 children: [
                   Expanded(
                     child: Divider(
-                      color: AppColors.darkBrown.withOpacity(0.15),
+                      color: onSurface.withOpacity(0.15),
                     ),
                   ),
                   Padding(
@@ -347,14 +345,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       'or',
                       style: TextStyle(
-                        color: AppColors.darkBrown.withOpacity(0.4),
+                        color: onSurface.withOpacity(0.4),
                         fontSize: 13,
                       ),
                     ),
                   ),
                   Expanded(
                     child: Divider(
-                      color: AppColors.darkBrown.withOpacity(0.15),
+                      color: onSurface.withOpacity(0.15),
                     ),
                   ),
                 ],
@@ -362,7 +360,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 16),
 
-              
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -375,14 +372,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     errorBuilder: (_, __, ___) =>
                         const Icon(Icons.g_mobiledata, size: 22),
                   ),
-                  label: const Text('Sign in with Google',style: TextStyle(color: AppColors.darkBrown),),
+                  label: Text(
+                    'Sign in with Google',
+                    style: TextStyle(color: onSurface),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(
-                              context,
-                            ).colorScheme.onSurface,
-                    backgroundColor: AppColors.lightGray,
-                    side: BorderSide(
-                        color: AppColors.darkBrown.withOpacity(0.2)),
+                    foregroundColor: onSurface,
+                    backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                    side: BorderSide(color: onSurface.withOpacity(0.2)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -392,24 +389,50 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 24),
 
-              
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
                   style: TextStyle(
-                    color: AppColors.darkBrown.withOpacity(0.45),
+                    color: onSurface.withOpacity(0.45),
                     fontSize: 12,
                   ),
                   children: [
                     const TextSpan(
-                        text:
-                            'By clicking "Continue", I have read and agree\nwith the '),
-                    TextSpan(
-                      text: 'Term Sheet, Privacy Policy',
-                      style: TextStyle(
-                        color: AppColors.darkBrown,
-                        fontWeight: FontWeight.w600,
-                        decoration: TextDecoration.underline,
+                      text: 'By clicking "Continue", I have read and agree\nwith the ',
+                    ),
+                    WidgetSpan(
+                      child: GestureDetector(
+                        onTap: () => launchUrl(
+                          Uri.parse('https://fluxvirtual.app/privacy-policy'),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        child: Text(
+                          'Privacy Policy',
+                          style: TextStyle(
+                            color: onSurface,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const TextSpan(text: ' and '),
+                    WidgetSpan(
+                      child: GestureDetector(
+                        onTap: () => launchUrl(
+                          Uri.parse('https://flux-virtual-privacy-policy.vercel.app'),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        child: Text(
+                          'Terms of Service',
+                          style: TextStyle(
+                            color: onSurface,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
                       ),
                     ),
                   ],

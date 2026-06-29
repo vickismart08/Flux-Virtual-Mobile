@@ -128,8 +128,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: AppColors.warmBeige,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -137,7 +137,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             children: [
               const SizedBox(height: 60),
 
-              
               Container(
                 width: 100,
                 height: 100,
@@ -154,25 +153,23 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
               const SizedBox(height: 32),
 
-              
               Text(
                 'Verify your email',
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.darkBrown,
+                  color: onSurface,
                 ),
               ),
 
               const SizedBox(height: 12),
 
-              
               Text(
                 'We sent a verification link to',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.darkBrown.withOpacity(0.5),
+                  color: onSurface.withOpacity(0.5),
                 ),
               ),
 
@@ -184,7 +181,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.darkBrown,
+                  color: onSurface,
                 ),
               ),
 
@@ -195,7 +192,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.darkBrown.withOpacity(0.5),
+                  color: onSurface.withOpacity(0.5),
                   height: 1.5,
                 ),
               ),
@@ -246,7 +243,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   decoration: BoxDecoration(
                     color: _isResendEnabled
                         ? AppColors.softOrange.withOpacity(0.1)
-                        : AppColors.lightGray.withOpacity(0.5),
+                        : Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: _isResendEnabled
@@ -264,7 +261,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         fontWeight: FontWeight.w500,
                         color: _isResendEnabled
                             ? AppColors.softOrange
-                            : AppColors.darkBrown.withOpacity(0.35),
+                            : onSurface.withOpacity(0.35),
                       ),
                     ),
                   ),
@@ -273,7 +270,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
               const Spacer(),
 
-              
               GestureDetector(
                 onTap: () async {
                   await FirebaseAuth.instance.signOut();
@@ -283,7 +279,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   'Wrong email? Go back',
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.darkBrown.withOpacity(0.4),
+                    color: onSurface.withOpacity(0.4),
                     decoration: TextDecoration.underline,
                   ),
                 ),

@@ -79,16 +79,16 @@ class _HistoryState extends State<History> {
                       // apply filter
                       if (_filter != 'all') {
                         docs = docs.where((doc) {
-                          final data =
-                              doc.data() as Map<String, dynamic>;
-                          final status =
-                              data['status'] as String? ?? '';
+                          final data = doc.data() as Map<String, dynamic>;
+                          final status = data['status'] as String? ?? '';
+                          final dir = data['direction'] as String? ?? '';
                           if (_filter == 'missed') {
-                            return status == 'no-answer' ||
-                                status == 'busy' ||
-                                status == 'failed';
+                            return dir != 'outbound' &&
+                                (status == 'no-answer' || status == 'busy');
                           }
-                          return status == _filter;
+                          if (_filter == 'outbound') return dir == 'outbound';
+                          if (_filter == 'inbound') return dir == 'inbound';
+                          return true;
                         }).toList();
                       }
 
@@ -140,8 +140,7 @@ class _HistoryState extends State<History> {
                               data['createdAt'] as Timestamp?;
 
                           // determine direction
-                          final isOutbound = data['direction'] == 'outbound' ||
-                              data.containsKey('to');
+                          final isOutbound = data['direction'] == 'outbound';
                           final otherNumber = isOutbound ? to : from;
 
                           // initials from number
@@ -157,18 +156,16 @@ class _HistoryState extends State<History> {
                           // call icon color
                           Color iconColor;
                           IconData callIcon;
-                         if (status == 'no-answer' ||
-    status == 'busy' ||
-    status == 'failed') {
-  iconColor = Colors.red;
-  callIcon = Icons.call_missed; // ✅ Material icon
-} else if (isOutbound) {
-  iconColor = Colors.blue;
-  callIcon = Icons.call_made; // ✅ Material icon
-} else {
-  iconColor = Colors.green;
-  callIcon = Icons.call_received; // ✅ Material icon
-}
+                          if (isOutbound) {
+                            iconColor = Colors.blue;
+                            callIcon = Icons.call_made;
+                          } else if (status == 'no-answer' || status == 'busy') {
+                            iconColor = Colors.red;
+                            callIcon = Icons.call_missed;
+                          } else {
+                            iconColor = Colors.green;
+                            callIcon = Icons.call_received;
+                          }
 
                           return Card(
                             margin:
@@ -195,7 +192,7 @@ class _HistoryState extends State<History> {
                                       color: iconColor, size: 14),
                                   const SizedBox(width: 4),
                                   Text(
-                                    _formatStatus(status),
+                                    _formatStatus(status, isOutbound: isOutbound),
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: iconColor,
@@ -207,8 +204,7 @@ class _HistoryState extends State<History> {
                                 time,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color:
-                                      AppColors.darkBrown.withOpacity(0.45),
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45),
                                 ),
                               ),
                               onTap: () {
@@ -246,20 +242,22 @@ class _HistoryState extends State<History> {
     }
   }
 
-  String _formatStatus(String status) {
+  String _formatStatus(String status, {required bool isOutbound}) {
     switch (status) {
       case 'completed':
-        return 'Completed';
+        return isOutbound ? 'Outgoing' : 'Incoming';
       case 'no-answer':
-        return 'Missed';
+        return isOutbound ? 'No answer' : 'Missed';
       case 'busy':
         return 'Busy';
       case 'failed':
-        return 'Failed';
+        return isOutbound ? 'Failed' : 'Missed';
       case 'initiated':
-        return 'Outgoing';
+      case 'queued':
       case 'ringing':
-        return 'Ringing';
+        return isOutbound ? 'Outgoing' : 'Incoming';
+      case 'in-progress':
+        return 'In progress';
       default:
         return status;
     }

@@ -91,11 +91,11 @@ class _NumbersScreenState extends State<NumbersScreen> {
     return 'Expires: ${_formatExpiry(expiresAt)}';
   }
 
-  Color _getExpiryColor(Map<String, dynamic> data) {
+  Color _getExpiryColor(Map<String, dynamic> data, BuildContext context) {
     if (_isInGracePeriod(data)) return Colors.orange;
     if (_isExpired(data)) return Colors.red;
     if (_isExpiringSoon(data)) return Colors.orange;
-    return AppColors.darkBrown.withOpacity(0.4);
+    return Theme.of(context).colorScheme.onSurface.withOpacity(0.4);
   }
 
   Future<void> _renewNumber(String numberId, Map<String, dynamic> data) async {
@@ -403,7 +403,7 @@ class _NumbersScreenState extends State<NumbersScreen> {
                     final phoneNumber = data['phoneNumber'] as String? ?? '';
                     final isoCountry = data['isoCountry'] as String? ?? 'US';
                     final active = data['active'] as bool? ?? false;
-                    final monthlyRate = data['monthlyRate'] as double? ?? 2.99;
+                    final monthlyRate = (data['monthlyRate'] as num?)?.toDouble() ?? 4999.0;
 
                     // in the ListView.builder replace the Card with this
                     return Card(
@@ -452,9 +452,7 @@ class _NumbersScreenState extends State<NumbersScreen> {
                                       '₦${monthlyRate.toStringAsFixed(0)}/mo',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: AppColors.darkBrown.withOpacity(
-                                          0.5,
-                                        ),
+                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                                       ),
                                     ),
                                   ],
@@ -464,14 +462,14 @@ class _NumbersScreenState extends State<NumbersScreen> {
                                     _getExpiryText(data),
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: _getExpiryColor(data),
+                                      color: _getExpiryColor(data, context),
                                     ),
                                   ),
                               ],
                             ),
                             trailing: Icon(
                               RemixIcons.arrow_right_wide_line,
-                              color: AppColors.darkBrown.withOpacity(0.4),
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                             ),
                           ),
 
@@ -558,21 +556,56 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
     }
   }
 
+  Future<void> _confirmAndPurchase(String phoneNumber) async {
+    final countryName = _countries.firstWhere(
+      (c) => c['code'] == _searchedCountry,
+      orElse: () => {'name': _searchedCountry},
+    )['name'] ?? _searchedCountry;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ConfirmPurchaseDialog(
+        phoneNumber: phoneNumber,
+        countryCode: _searchedCountry,
+        countryName: countryName,
+        price: _getPrice(_searchedCountry),
+      ),
+    );
+
+    if (confirmed != true) return;
+    await _purchase(phoneNumber);
+  }
+
   Future<void> _purchase(String phoneNumber) async {
     setState(() {
-      _purchasingNumber = phoneNumber; // ✅ only this number loads
+      _purchasingNumber = phoneNumber;
       _errorMessage = null;
     });
 
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const _PurchaseLoadingDialog(),
+      );
+    }
+
     try {
+      final stopwatch = Stopwatch()..start();
+
       final result = await ApiService.purchaseNumber(
         phoneNumber: phoneNumber,
         countryCode: _searchedCountry,
       );
 
+      final remaining = const Duration(seconds: 10) - stopwatch.elapsed;
+      if (remaining > Duration.zero) await Future.delayed(remaining);
+
+      if (mounted) Navigator.pop(context); // close loading dialog
+
       if (result['success'] == true) {
         if (mounted) {
-          Navigator.pop(context);
+          Navigator.pop(context); // close search sheet
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('$phoneNumber purchased successfully!'),
@@ -591,11 +624,33 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
         );
       }
     } catch (e) {
+      if (mounted) Navigator.pop(context); // close loading dialog
       setState(() => _errorMessage = 'Purchase failed. Try again.');
     } finally {
       if (mounted) setState(() => _purchasingNumber = null);
     }
   }
+  Map<String, dynamic> _pricing = {'default': 4999};
+
+@override
+void initState() {
+  super.initState();
+  _loadPricing();
+}
+
+Future<void> _loadPricing() async {
+  try {
+    final pricing = await ApiService.getPricing();
+    setState(() => _pricing = pricing);
+  } catch (e) {
+    // use default pricing
+  }
+}
+
+double _getPrice(String countryCode) {
+  final price = _pricing[countryCode] ?? _pricing['default'] ?? 4999;
+  return (price as num).toDouble();
+}
 
   @override
   Widget build(BuildContext context) {
@@ -612,7 +667,7 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: AppColors.darkBrown.withOpacity(0.2),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -760,8 +815,8 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
                           subtitle: Text(region),
                           trailing: ElevatedButton(
                             onPressed: _purchasingNumber != null
-                                ? null // disable all buttons while any purchase is happening
-                                : () => _purchase(phoneNumber),
+                                ? null
+                                : () => _confirmAndPurchase(phoneNumber),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.softOrange,
                               foregroundColor: AppColors.white,
@@ -773,21 +828,21 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            child:
-                                _purchasingNumber ==
-                                    phoneNumber // ✅ only THIS number shows spinner
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Buy ₦4,999',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
+                            child: _purchasingNumber == phoneNumber
+    ? const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(
+          color: Colors.white,
+          strokeWidth: 2,
+        ),
+      )
+    : Text(
+        Theme.of(context).platform == TargetPlatform.iOS
+            ? '₦${_getPrice(_searchedCountry).toStringAsFixed(0)}/mo'
+            : 'Buy ₦${_getPrice(_searchedCountry).toStringAsFixed(0)}',
+        style: const TextStyle(fontSize: 13),
+      ),
                           ),
                         ),
                       );
@@ -795,6 +850,168 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ConfirmPurchaseDialog extends StatelessWidget {
+  const _ConfirmPurchaseDialog({
+    required this.phoneNumber,
+    required this.countryCode,
+    required this.countryName,
+    required this.price,
+  });
+
+  final String phoneNumber;
+  final String countryCode;
+  final String countryName;
+  final double price;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flag.fromString(countryCode, height: 44, width: 66),
+          const SizedBox(height: 16),
+          Text(
+            phoneNumber,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            countryName,
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.softOrange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '₦${price.toStringAsFixed(0)} / month',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.softOrange,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'This number will be added to your account and renewed monthly from your credit balance.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.softOrange,
+                foregroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Confirm — ₦${price.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PurchaseLoadingDialog extends StatelessWidget {
+  const _PurchaseLoadingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 52,
+              height: 52,
+              child: CircularProgressIndicator(
+                color: AppColors.softOrange,
+                strokeWidth: 3,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Processing your purchase...',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please wait while we set up\nyour new number.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

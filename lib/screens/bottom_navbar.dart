@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/screens/Numbers.dart';
@@ -27,7 +29,7 @@ class _BottomNavbarState extends State<BottomNavbar> {
 
   @override
   Widget build(BuildContext context) {
-    
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final navBg = isDark ? AppColors.darkSurface : AppColors.white;
     final shadowColor = isDark
@@ -55,11 +57,9 @@ class _BottomNavbarState extends State<BottomNavbar> {
             currentIndex: currentIndex,
             onTap: (index) => setState(() => currentIndex = index),
             type: BottomNavigationBarType.fixed,
-            backgroundColor: navBg,  
+            backgroundColor: navBg,
             selectedItemColor: AppColors.softOrange,
-            unselectedItemColor: isDark
-                ? Colors.white38        
-                : Colors.grey,
+            unselectedItemColor: isDark ? Colors.white38 : Colors.grey,
             elevation: 0,
             selectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.w600,
@@ -69,24 +69,52 @@ class _BottomNavbarState extends State<BottomNavbar> {
               fontWeight: FontWeight.w500,
               fontSize: 11,
             ),
-            items: const [
+            items: [
               BottomNavigationBarItem(
-                icon: Icon(RemixIcons.chat_1_fill),
                 label: "Messages",
+                icon: StreamBuilder<QuerySnapshot>(
+                  stream: uid == null
+                      ? null
+                      : FirebaseFirestore.instance
+                          .collection('messages')
+                          .where('userId', isEqualTo: uid)
+                          .snapshots(),
+                  builder: (context, snap) {
+                    final count = snap.data?.docs.where((doc) {
+                      final d = doc.data() as Map<String, dynamic>;
+                      return d['direction'] == 'inbound' &&
+                          d['read'] != true;
+                    }).length ?? 0;
+
+                    return Badge(
+                      isLabelVisible: count > 0,
+                      label: Text(
+                        count > 99 ? '99+' : '$count',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      backgroundColor: AppColors.softOrange,
+                      child: const Icon(RemixIcons.chat_1_fill),
+                    );
+                  },
+                ),
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(RemixIcons.phone_fill),
                 label: "Calls",
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(RemixIcons.hashtag),
                 label: "Numbers",
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(RemixIcons.wallet_fill),
                 label: "Credit",
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(RemixIcons.user_3_fill),
                 label: "Profile",
               ),

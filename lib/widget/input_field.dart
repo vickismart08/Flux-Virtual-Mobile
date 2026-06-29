@@ -20,25 +20,26 @@ class InputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return TextField(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
-      style: TextStyle(color: AppColors.darkBrown, fontSize: 14),
+      style: TextStyle(color: onSurface, fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(
-          color: AppColors.darkBrown.withOpacity(0.35),
+          color: onSurface.withOpacity(0.35),
           fontSize: 14,
         ),
         prefixIcon: Icon(
           icon,
-          color: AppColors.darkBrown.withOpacity(0.4),
+          color: onSurface.withOpacity(0.4),
           size: 20,
         ),
         suffixIcon: suffix,
         filled: true,
-        fillColor: AppColors.white,
+        fillColor: Theme.of(context).colorScheme.surface,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
@@ -48,12 +49,12 @@ class InputField extends StatelessWidget {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(
-            color: AppColors.darkBrown.withOpacity(0.08),
+            color: onSurface.withOpacity(0.08),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
+          borderSide: const BorderSide(
             color: AppColors.softOrange,
             width: 1.5,
           ),

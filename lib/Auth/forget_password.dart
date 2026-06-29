@@ -59,12 +59,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.warmBeige,
       appBar: AppBar(
-        backgroundColor: AppColors.warmBeige,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.darkBrown),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -78,12 +76,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _buildForm() {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 20),
 
-        // ── Icon ─────────────────────────────────────────
         Center(
           child: Container(
             width: 80,
@@ -102,14 +100,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
         const SizedBox(height: 24),
 
-        // ── Title ─────────────────────────────────────────
         Center(
           child: Text(
             'Forgot Password?',
             style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.bold,
-              color: AppColors.darkBrown,
+              color: onSurface,
             ),
           ),
         ),
@@ -122,7 +119,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: AppColors.darkBrown.withOpacity(0.5),
+              color: onSurface.withOpacity(0.5),
               height: 1.5,
             ),
           ),
@@ -195,6 +192,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _buildSuccess() {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -219,7 +217,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.bold,
-            color: AppColors.darkBrown,
+            color: onSurface,
           ),
         ),
 
@@ -230,7 +228,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
-            color: AppColors.darkBrown.withOpacity(0.5),
+            color: onSurface.withOpacity(0.5),
             height: 1.5,
           ),
         ),
