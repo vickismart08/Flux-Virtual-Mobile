@@ -203,3 +203,30 @@ exports.makeCall = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("internal", error.message);
   }
 });
+
+// ── 6. Send FCM push when a notification doc is created ──────
+exports.onNotificationCreated = functions.firestore
+  .document("users/{userId}/notifications/{notifId}")
+  .onCreate(async (snap, context) => {
+    const { userId } = context.params;
+    const data = snap.data();
+
+    const title = data.title || "Flux Virtual";
+    const body = data.body || data.message || "";
+
+    try {
+      await admin.messaging().send({
+        topic: `user_${userId}`,
+        notification: { title, body },
+        apns: {
+          payload: { aps: { sound: "default", badge: 1 } },
+        },
+        android: {
+          priority: "high",
+          notification: { sound: "default" },
+        },
+      });
+    } catch (e) {
+      console.error("FCM send failed:", e);
+    }
+  });
