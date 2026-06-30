@@ -68,8 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
         await NotificationService.saveToken(credential.user!.uid);
-        await NotificationService.saveToken(userCredential.user!.uid);
-      await ApiService.loginNotification();
+        await ApiService.loginNotification();
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -141,7 +140,8 @@ class _LoginScreenState extends State<LoginScreen> {
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
-      await ApiService.loginNotification(); 
+      await NotificationService.saveToken(userCredential.user!.uid);
+      await ApiService.loginNotification();
 
       if (mounted) {
         Navigator.pushReplacement(
