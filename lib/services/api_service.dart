@@ -74,7 +74,11 @@ class ApiService {
       Uri.parse('$baseUrl/searchNumbers'),
       headers: await _headers(),
       body: jsonEncode({'countryCode': countryCode}),
-    );
+    ).timeout(const Duration(seconds: 35));
+    if (response.statusCode >= 400) {
+      final err = jsonDecode(response.body);
+      throw Exception(err['error'] ?? 'Server error ${response.statusCode}');
+    }
     final data = jsonDecode(response.body);
     return data is List ? data : [];
   }
@@ -90,7 +94,7 @@ class ApiService {
         'phoneNumber': phoneNumber,
         'countryCode': countryCode,
       }),
-    );
+    ).timeout(const Duration(seconds: 35));
     return jsonDecode(response.body);
   }
 
@@ -186,7 +190,9 @@ class ApiService {
     }
   }
   static Future<Map<String, dynamic>> getPricing() async {
-    final response = await http.get(Uri.parse('$baseUrl/pricing'));
+    final response = await http
+        .get(Uri.parse('$baseUrl/pricing'))
+        .timeout(const Duration(seconds: 20));
     return jsonDecode(response.body);
   }
 

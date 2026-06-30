@@ -279,6 +279,31 @@ class _NumbersScreenState extends State<NumbersScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Failed to load numbers',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            snapshot.error.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 13, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
                 final numbers = snapshot.data?.docs ?? [];
 
                 if (numbers.isEmpty) {
@@ -550,7 +575,16 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
       );
       setState(() => _numbers = numbers);
     } catch (e) {
-      setState(() => _errorMessage = 'Failed to search numbers. Try again.');
+      final msg = e.toString();
+      setState(() {
+        if (msg.contains('TimeoutException') || msg.contains('timeout')) {
+          _errorMessage = 'Server is starting up. Please try again in 30 seconds.';
+        } else if (msg.contains('SocketException') || msg.contains('Connection')) {
+          _errorMessage = 'No internet connection. Check your network and try again.';
+        } else {
+          _errorMessage = 'Failed to search numbers. Try again.';
+        }
+      });
     } finally {
       setState(() => _isSearching = false);
     }
