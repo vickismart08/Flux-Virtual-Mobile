@@ -20,10 +20,6 @@ import FirebaseMessaging
     self.window = window
 
     UNUserNotificationCenter.current().delegate = self
-    UNUserNotificationCenter.current().requestAuthorization(
-      options: [.alert, .badge, .sound],
-      completionHandler: { _, _ in }
-    )
     application.registerForRemoteNotifications()
 
     GeneratedPluginRegistrant.register(with: self)
