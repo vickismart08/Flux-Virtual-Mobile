@@ -4,6 +4,7 @@ import 'package:flux_virtual/Auth/email_verification_screen.dart';
 import 'package:flux_virtual/Auth/onboarding.dart';
 import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/screens/bottom_navbar.dart';
+import 'package:flux_virtual/services/notification_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,7 +25,8 @@ class _SplashScreenState extends State<SplashScreen> {
   if (mounted) {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && user.emailVerified) {
-      
+      // Run in background — don't block navigation
+      NotificationService.saveToken(user.uid);
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const BottomNavbar()),

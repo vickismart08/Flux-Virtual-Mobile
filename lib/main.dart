@@ -19,12 +19,7 @@ void main() async {
   );
 
   await NotificationService.initialize();
-
-  // Re-subscribe to FCM topics if user is already logged in (e.g. after app update)
-  final currentUser = FirebaseAuth.instance.currentUser;
-  if (currentUser != null) {
-    await NotificationService.saveToken(currentUser.uid);
-  }
+  // saveToken() is called inside SplashScreen after Flutter engine is fully ready
 
   await RemoteConfigService.initialize();
   KeepAliveService.start();
