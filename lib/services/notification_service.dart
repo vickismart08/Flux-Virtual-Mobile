@@ -137,10 +137,17 @@ class NotificationService {
           if (apnsToken != null) break;
           await Future.delayed(const Duration(seconds: 2));
         }
-        if (apnsToken == null) return;
+        if (apnsToken == null) {
+          debugPrint('FCM: APNS token unavailable after retries — skipping topic subscription');
+          return;
+        }
+        debugPrint('FCM: APNS token ready, subscribing to topics');
       }
       await _messaging.subscribeToTopic('user_$uid');
       await _messaging.subscribeToTopic('all_users');
-    } catch (_) {}
+      debugPrint('FCM: subscribed to user_$uid and all_users');
+    } catch (e) {
+      debugPrint('FCM: topic subscription failed — $e');
+    }
   }
 }

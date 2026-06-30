@@ -68,7 +68,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
         await NotificationService.saveToken(credential.user!.uid);
-        await ApiService.loginNotification(); 
+        await NotificationService.saveToken(userCredential.user!.uid);
+      await ApiService.loginNotification();
 
       if (mounted) {
         Navigator.pushReplacement(
