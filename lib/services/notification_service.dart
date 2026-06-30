@@ -126,10 +126,19 @@ class NotificationService {
   }
 
   // ── Subscribe user to their FCM topics ──────────────────────
-  // Topic subscription works independently of the APNS/FCM token — Firebase
-  // queues it internally and delivers once registration completes.
   static Future<void> saveToken(String uid) async {
     try {
+      // On iOS, topic subscription silently fails if the APNS token isn't
+      // ready yet. Wait for it before subscribing.
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        String? apnsToken;
+        for (int i = 0; i < 10; i++) {
+          apnsToken = await _messaging.getAPNSToken();
+          if (apnsToken != null) break;
+          await Future.delayed(const Duration(seconds: 2));
+        }
+        if (apnsToken == null) return;
+      }
       await _messaging.subscribeToTopic('user_$uid');
       await _messaging.subscribeToTopic('all_users');
     } catch (_) {}

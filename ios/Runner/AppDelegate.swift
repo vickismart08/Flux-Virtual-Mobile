@@ -20,6 +20,7 @@ import FirebaseMessaging
     self.window = window
 
     UNUserNotificationCenter.current().delegate = self
+    Messaging.messaging().delegate = self
     application.registerForRemoteNotifications()
 
     GeneratedPluginRegistrant.register(with: self)
