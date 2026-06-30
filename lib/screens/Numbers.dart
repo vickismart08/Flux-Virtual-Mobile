@@ -582,7 +582,7 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
         } else if (msg.contains('SocketException') || msg.contains('Connection')) {
           _errorMessage = 'No internet connection. Check your network and try again.';
         } else {
-          _errorMessage = 'Failed to search numbers. Try again.';
+          _errorMessage = msg.replaceFirst('Exception: ', '');
         }
       });
     } finally {
@@ -659,7 +659,7 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
       }
     } catch (e) {
       if (mounted) Navigator.pop(context); // close loading dialog
-      setState(() => _errorMessage = 'Purchase failed. Try again.');
+      setState(() => _errorMessage = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _purchasingNumber = null);
     }
