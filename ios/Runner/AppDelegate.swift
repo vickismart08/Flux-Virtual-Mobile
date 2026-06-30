@@ -4,7 +4,7 @@ import Firebase
 import FirebaseMessaging
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, MessagingDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -41,5 +41,10 @@ import FirebaseMessaging
     didFailToRegisterForRemoteNotificationsWithError error: Error
   ) {
     print("APNs registration failed: \(error.localizedDescription)")
+  }
+
+  // Called by FCM when a new registration token is generated
+  func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+    print("FCM token refreshed: \(fcmToken ?? "nil")")
   }
 }
