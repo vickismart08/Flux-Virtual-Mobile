@@ -43,11 +43,15 @@ class NotificationService {
         ));
 
     // Show notification when app is in foreground
+    // On iOS, setForegroundNotificationPresentationOptions handles the banner.
+    // On Android, we show a local notification manually.
     FirebaseMessaging.onMessage.listen((message) {
-      showLocalNotification(
-        title: message.notification?.title ?? 'Flux Virtual',
-        body: message.notification?.body ?? '',
-      );
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        showLocalNotification(
+          title: message.notification?.title ?? 'Flux Virtual',
+          body: message.notification?.body ?? '',
+        );
+      }
     });
 
     // When FCM issues a new token, update Firestore immediately

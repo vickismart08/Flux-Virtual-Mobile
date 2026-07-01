@@ -126,6 +126,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Error loading notifications:\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.redAccent, fontSize: 13),
+                ),
+              ),
+            );
+          }
+
           final docs = snapshot.data?.docs ?? [];
 
           if (docs.isEmpty) {
