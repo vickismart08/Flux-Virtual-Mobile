@@ -334,8 +334,13 @@ class _ChatscreenState extends State<Chatscreen> {
 
                       // Normalise both numbers to E.164 so they match what
                       // the backend stores (ApiService.sendSMS calls toE164).
+                      // Also compare raw values so short codes (e.g. "12345")
+                      // stored without a + still match correctly.
                       final fromE164 = ApiService.toE164(widget.fromNumber);
                       final otherE164 = ApiService.toE164(widget.otherNumber);
+
+                      bool _numEq(String a, String b) =>
+                          a == b || ApiService.toE164(a) == ApiService.toE164(b);
 
                       final allMessages = snapshot.data?.docs ?? [];
 
@@ -344,8 +349,8 @@ class _ChatscreenState extends State<Chatscreen> {
                         final data = doc.data() as Map<String, dynamic>;
                         final from = data['from'] as String? ?? '';
                         final to = data['to'] as String? ?? '';
-                        return (from == fromE164 && to == otherE164) ||
-                            (from == otherE164 && to == fromE164);
+                        return (_numEq(from, fromE164) && _numEq(to, otherE164)) ||
+                            (_numEq(from, otherE164) && _numEq(to, fromE164));
                       }).toList();
 
                       // Sort by createdAt ascending (nulls last)
