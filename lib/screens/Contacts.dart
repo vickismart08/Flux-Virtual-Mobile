@@ -3,8 +3,7 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/screens/calling_screen.dart';
 import 'package:flux_virtual/screens/chatscreen.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flux_virtual/widget/pick_number_sheet.dart';
 
 class Contacts extends StatefulWidget {
   const Contacts({super.key});
@@ -88,23 +87,6 @@ class _ContactsState extends State<Contacts> {
     });
   }
 
-  // ── Fetch the user's active virtual number ──────────────────
-  Future<String?> _getActiveNumber() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return null;
-
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('numbers')
-        .where('active', isEqualTo: true)
-        .limit(1)
-        .get();
-
-    if (snap.docs.isEmpty) return null;
-    return snap.docs.first.data()['phoneNumber'] as String?;
-  }
-
   // ── Call icon tapped from list ──────────────────────────────
   Future<void> _callContact(Contact contact) async {
     if (contact.phones.isEmpty) return;
@@ -113,7 +95,7 @@ class _ContactsState extends State<Contacts> {
     setState(() => _loadingPhone = phone);
 
     try {
-      final fromNumber = await _getActiveNumber();
+      final fromNumber = await pickActiveNumber(context);
       if (fromNumber == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -170,7 +152,7 @@ class _ContactsState extends State<Contacts> {
     setState(() => _loadingPhone = phone);
 
     try {
-      final fromNumber = await _getActiveNumber();
+      final fromNumber = await pickActiveNumber(context);
       if (fromNumber == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -193,8 +175,11 @@ class _ContactsState extends State<Contacts> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                Chatscreen(otherNumber: phone, fromNumber: fromNumber),
+            builder: (_) => Chatscreen(
+              otherNumber: phone,
+              fromNumber: fromNumber,
+              contactName: contact.displayName,
+            ),
           ),
         );
       }
@@ -469,23 +454,6 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
     }
   }
 
-  // ── Fetch active virtual number ─────────────────────────────
-  Future<String?> _getActiveNumber() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return null;
-
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('numbers')
-        .where('active', isEqualTo: true)
-        .limit(1)
-        .get();
-
-    if (snap.docs.isEmpty) return null;
-    return snap.docs.first.data()['phoneNumber'] as String?;
-  }
-
   Future<void> _call() async {
     if (_selectedPhone == null) return;
 
@@ -495,7 +463,7 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
     });
 
     try {
-      final fromNumber = await _getActiveNumber();
+      final fromNumber = await pickActiveNumber(context);
       if (fromNumber == null) {
         setState(
           () => _errorMessage = 'You need a virtual number to make calls.',
@@ -532,7 +500,7 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
     });
 
     try {
-      final fromNumber = await _getActiveNumber();
+      final fromNumber = await pickActiveNumber(context);
       if (fromNumber == null) {
         setState(
           () =>
@@ -542,7 +510,6 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
       }
 
       if (mounted) {
-        // Capture navigator before async-induced disposal
         final nav = Navigator.of(context);
         nav.pop(); // close sheet
         nav.push(
@@ -550,6 +517,7 @@ class _ContactActionSheetState extends State<_ContactActionSheet> {
             builder: (_) => Chatscreen(
               otherNumber: _selectedPhone!,
               fromNumber: fromNumber,
+              contactName: widget.contact.displayName,
             ),
           ),
         );

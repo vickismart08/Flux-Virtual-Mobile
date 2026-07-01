@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flux_virtual/services/review_service.dart';
 import 'package:flux_virtual/screens/calling_screen.dart';
+import 'package:flux_virtual/widget/pick_number_sheet.dart';
 
 class Keypad extends StatefulWidget {
   const Keypad({super.key});
@@ -36,29 +35,15 @@ class _KeypadState extends State<Keypad> {
     });
 
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) {
-        setState(() => _errorMessage = 'Not logged in');
-        return;
-      }
+      final fromNumber = await pickActiveNumber(context);
 
-      final numbersSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('numbers')
-          .where('active', isEqualTo: true)
-          .limit(1)
-          .get();
-
-      if (numbersSnap.docs.isEmpty) {
+      if (fromNumber == null) {
         setState(
           () => _errorMessage =
               'You need a virtual number to make calls. Get one in the Numbers tab.',
         );
         return;
       }
-
-      final fromNumber = numbersSnap.docs.first.data()['phoneNumber'] as String;
 
       if (mounted) {
         ReviewService.requestReview();
