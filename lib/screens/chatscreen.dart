@@ -16,11 +16,13 @@ class _PendingMsg {
 class Chatscreen extends StatefulWidget {
   final String otherNumber;
   final String fromNumber;
+  final String? contactName;
 
   const Chatscreen({
     super.key,
     required this.otherNumber,
     required this.fromNumber,
+    this.contactName,
   });
 
   @override
@@ -267,11 +269,13 @@ class _ChatscreenState extends State<Chatscreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.otherNumber,
+              widget.contactName ?? widget.otherNumber,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Text(
-              'From: ${widget.fromNumber}',
+              widget.contactName != null
+                  ? '${widget.otherNumber} · From: ${widget.fromNumber}'
+                  : 'From: ${widget.fromNumber}',
               style: TextStyle(
                 fontSize: 11,
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
@@ -290,7 +294,7 @@ class _ChatscreenState extends State<Chatscreen> {
                   builder: (_) => CallingScreen(
                     toNumber: widget.otherNumber,
                     fromNumber: widget.fromNumber,
-                    contactName: '',
+                    contactName: widget.contactName ?? widget.otherNumber,
                   ),
                 ),
               );

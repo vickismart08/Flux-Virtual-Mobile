@@ -18,11 +18,66 @@ class Messages extends StatefulWidget {
 class _MessagesState extends State<Messages> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  Map<String, String> _contactNames = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContactNames();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadContactNames() async {
+    try {
+      final status = await FlutterContacts.permissions.request(PermissionType.read);
+      if (status != PermissionStatus.granted && status != PermissionStatus.limited) return;
+      final contacts = await FlutterContacts.getAll(properties: {ContactProperty.phone});
+      final map = <String, String>{};
+      for (final c in contacts) {
+        final name = c.displayName ?? '';
+        if (name.isEmpty) continue;
+        for (final phone in c.phones) {
+          final digits = phone.number.replaceAll(RegExp(r'\D'), '');
+          if (digits.isNotEmpty) {
+            map[digits] = name;
+            if (digits.length > 10) {
+              map[digits.substring(digits.length - 10)] = name;
+            }
+          }
+        }
+      }
+      if (mounted) setState(() => _contactNames = map);
+    } catch (_) {}
+  }
+
+  // Returns the saved contact name for a phone number, or the number itself.
+  String _contactName(String number) {
+    final digits = number.replaceAll(RegExp(r'\D'), '');
+    if (_contactNames.containsKey(digits)) return _contactNames[digits]!;
+    if (digits.length > 10) {
+      final last10 = digits.substring(digits.length - 10);
+      if (_contactNames.containsKey(last10)) return _contactNames[last10]!;
+    }
+    return number;
+  }
+
+  // Returns avatar text: initials when name is known, last 2 digits otherwise.
+  String _avatarLabel(String number) {
+    final name = _contactName(number);
+    if (name != number) {
+      final parts = name.trim().split(RegExp(r'\s+'));
+      if (parts.length >= 2 && parts[1].isNotEmpty) {
+        return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+      }
+      return parts[0][0].toUpperCase();
+    }
+    final len = number.length;
+    return len >= 2 ? number.substring(len - 2) : number;
   }
 
   String _fmtConvTime(dynamic createdAt) {
@@ -238,7 +293,11 @@ class _MessagesState extends State<Messages> {
                         }
 
                         final filtered = conversations.entries
-                            .where((e) => e.key.contains(_searchQuery))
+                            .where((e) {
+                              final q = _searchQuery.toLowerCase();
+                              return e.key.contains(q) ||
+                                  _contactName(e.key).toLowerCase().contains(q);
+                            })
                             .toList();
 
                         return ListView.builder(
@@ -263,12 +322,11 @@ class _MessagesState extends State<Messages> {
                                       backgroundColor: AppColors.softOrange
                                           .withOpacity(0.15),
                                       child: Text(
-                                        number.isNotEmpty
-                                            ? number[number.length - 1]
-                                            : '?',
+                                        _avatarLabel(number),
                                         style: TextStyle(
                                           color: AppColors.softOrange,
                                           fontWeight: FontWeight.bold,
+                                          fontSize: 13,
                                         ),
                                       ),
                                     ),
@@ -295,7 +353,7 @@ class _MessagesState extends State<Messages> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        number,
+                                        _contactName(number),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -329,6 +387,7 @@ class _MessagesState extends State<Messages> {
                                   ),
                                 ),
                                 onTap: () {
+                                  final resolvedName = _contactName(number);
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -337,6 +396,9 @@ class _MessagesState extends State<Messages> {
                                         fromNumber: direction == 'inbound'
                                             ? data['to'] as String
                                             : from,
+                                        contactName: resolvedName != number
+                                            ? resolvedName
+                                            : null,
                                       ),
                                     ),
                                   );
@@ -420,7 +482,7 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
   });
 }
 
-  void _openChat(String toNumber) async {
+  void _openChat(String toNumber, {String? contactName}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
@@ -479,8 +541,11 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                Chatscreen(otherNumber: toNumber, fromNumber: fromNumber),
+            builder: (_) => Chatscreen(
+              otherNumber: toNumber,
+              fromNumber: fromNumber,
+              contactName: contactName,
+            ),
           ),
         );
       }
@@ -504,8 +569,11 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            Chatscreen(otherNumber: toNumber, fromNumber: fromNumber),
+        builder: (_) => Chatscreen(
+          otherNumber: toNumber,
+          fromNumber: fromNumber,
+          contactName: contactName,
+        ),
       ),
     );
   }
@@ -649,7 +717,7 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
                         ),
                        title: Text(contact.displayName ?? ''),
                         subtitle: Text(phone),
-                        onTap: () => _openChat(phone),
+                        onTap: () => _openChat(phone, contactName: contact.displayName),
                       );
                     },
                   ),
