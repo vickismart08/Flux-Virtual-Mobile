@@ -5,7 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:twilio_voice/twilio_voice.dart';
 import 'package:flux_virtual/services/api_service.dart';
 
-enum VoiceCallState { idle, calling, ringing, connected, disconnected }
+enum VoiceCallState { idle, calling, ringing, incoming, connected, disconnected }
 
 class VoiceService {
   VoiceService._();
@@ -16,6 +16,9 @@ class VoiceService {
 
   VoiceCallState _current = VoiceCallState.idle;
   VoiceCallState get currentState => _current;
+
+  // True while an incoming call is active (as opposed to an outgoing one)
+  bool isIncomingCall = false;
 
   StreamSubscription<CallEvent>? _eventSub;
   bool _initialized = false;
@@ -66,6 +69,9 @@ class VoiceService {
 
     _eventSub = TwilioVoice.instance.callEventsListener.listen((event) {
       switch (event) {
+        case CallEvent.incoming:
+          isIncomingCall = true;
+          _emit(VoiceCallState.incoming);
         case CallEvent.ringing:
           _emit(VoiceCallState.ringing);
         case CallEvent.connected:
@@ -73,6 +79,7 @@ class VoiceService {
           _emit(VoiceCallState.connected);
         case CallEvent.callEnded:
         case CallEvent.declined:
+          isIncomingCall = false;
           _emit(VoiceCallState.disconnected);
         default:
           break;
@@ -83,6 +90,7 @@ class VoiceService {
   }
 
   Future<void> makeCall({required String to, required String from}) async {
+    isIncomingCall = false;
     final granted = await _requestMic();
     if (!granted) throw Exception('Microphone permission denied');
 

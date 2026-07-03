@@ -97,8 +97,8 @@ class _MessagesState extends State<Messages> {
     return '${months[dt.month - 1]} ${dt.day}';
   }
 
-  // group messages by conversation (by phone number)
-  // Each entry's value includes '_hasUnread' = true if any inbound msg is unread
+  // Groups messages into threads keyed by "{otherNumber}|{myVirtualNumber}".
+  // Texts from the same person to different virtual numbers are kept separate.
   Map<String, Map<String, dynamic>> _groupMessages(
     List<QueryDocumentSnapshot> docs,
   ) {
@@ -109,16 +109,22 @@ class _MessagesState extends State<Messages> {
       final direction = data['direction'] as String? ?? '';
       final from = data['from'] as String? ?? '';
       final to = data['to'] as String? ?? '';
-      final otherNumber = direction == 'inbound' ? from : to;
 
-      if (!conversations.containsKey(otherNumber)) {
-        conversations[otherNumber] = Map<String, dynamic>.from(data)
-          ..['_hasUnread'] = false;
+      // otherNumber = the contact, myNumber = the user's virtual number
+      final otherNumber = direction == 'inbound' ? from : to;
+      final myNumber = direction == 'inbound' ? to : from;
+
+      final key = '$otherNumber|$myNumber';
+
+      if (!conversations.containsKey(key)) {
+        conversations[key] = Map<String, dynamic>.from(data)
+          ..['_hasUnread'] = false
+          ..['_otherNumber'] = otherNumber
+          ..['_myNumber'] = myNumber;
       }
 
-      // Mark conversation unread if any inbound message hasn't been read
       if (direction == 'inbound' && data['read'] != true) {
-        conversations[otherNumber]!['_hasUnread'] = true;
+        conversations[key]!['_hasUnread'] = true;
       }
     }
 
@@ -294,23 +300,24 @@ class _MessagesState extends State<Messages> {
 
                         final filtered = conversations.entries
                             .where((e) {
+                              final otherNum = e.value['_otherNumber'] as String? ?? '';
                               final q = _searchQuery.toLowerCase();
-                              return e.key.contains(q) ||
-                                  _contactName(e.key).toLowerCase().contains(q);
+                              return otherNum.contains(q) ||
+                                  _contactName(otherNum).toLowerCase().contains(q);
                             })
                             .toList();
 
                         return ListView.builder(
                           itemCount: filtered.length,
                           itemBuilder: (context, index) {
-                            final number = filtered[index].key;
                             final data = filtered[index].value;
+                            final otherNumber = data['_otherNumber'] as String? ?? '';
+                            final myNumber = data['_myNumber'] as String? ?? '';
                             final body = data['body'] as String? ?? '';
-                            final direction =
-                                data['direction'] as String? ?? '';
-                            final from = data['from'] as String? ?? '';
+                            final direction = data['direction'] as String? ?? '';
                             final hasUnread = data['_hasUnread'] == true;
                             final timeLabel = _fmtConvTime(data['createdAt']);
+                            final displayName = _contactName(otherNumber);
 
                             return Card(
                               margin: const EdgeInsets.symmetric(vertical: 6),
@@ -322,7 +329,7 @@ class _MessagesState extends State<Messages> {
                                       backgroundColor: AppColors.softOrange
                                           .withOpacity(0.15),
                                       child: Text(
-                                        _avatarLabel(number),
+                                        _avatarLabel(otherNumber),
                                         style: TextStyle(
                                           color: AppColors.softOrange,
                                           fontWeight: FontWeight.bold,
@@ -353,7 +360,7 @@ class _MessagesState extends State<Messages> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        _contactName(number),
+                                        displayName,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -372,32 +379,47 @@ class _MessagesState extends State<Messages> {
                                       ),
                                   ],
                                 ),
-                                subtitle: Text(
-                                  '${direction == 'inbound' ? '' : 'You: '}$body',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: hasUnread
-                                        ? Theme.of(context).colorScheme.onSurface
-                                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                                    fontSize: 13,
-                                    fontWeight: hasUnread
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                  ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (myNumber.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 2),
+                                        child: Text(
+                                          'via $myNumber',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.softOrange.withOpacity(0.8),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    Text(
+                                      '${direction == 'inbound' ? '' : 'You: '}$body',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: hasUnread
+                                            ? Theme.of(context).colorScheme.onSurface
+                                            : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                        fontSize: 13,
+                                        fontWeight: hasUnread
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 onTap: () {
-                                  final resolvedName = _contactName(number);
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => Chatscreen(
-                                        otherNumber: number,
-                                        fromNumber: direction == 'inbound'
-                                            ? data['to'] as String
-                                            : from,
-                                        contactName: resolvedName != number
-                                            ? resolvedName
+                                        otherNumber: otherNumber,
+                                        fromNumber: myNumber,
+                                        contactName: displayName != otherNumber
+                                            ? displayName
                                             : null,
                                       ),
                                     ),

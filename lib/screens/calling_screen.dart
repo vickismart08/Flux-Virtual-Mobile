@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flux_virtual/services/api_service.dart';
 import 'package:flux_virtual/services/voice_service.dart';
+import 'package:twilio_voice/twilio_voice.dart';
 
 class CallingScreen extends StatefulWidget {
   final String toNumber;
   final String fromNumber;
   final String contactName;
   final bool autoCall;
+  final bool isIncoming;
 
   const CallingScreen({
     super.key,
@@ -17,6 +19,7 @@ class CallingScreen extends StatefulWidget {
     required this.fromNumber,
     required this.contactName,
     this.autoCall = true,
+    this.isIncoming = false,
   });
 
   @override
@@ -34,7 +37,7 @@ class _CallingScreenState extends State<CallingScreen>
   Duration _elapsed = Duration.zero;
   Timer? _timer;
 
-  VoiceCallState _callState = VoiceCallState.calling;
+  late VoiceCallState _callState;
   StreamSubscription<VoiceCallState>? _callSub;
   bool _hasPopped = false;
   late final int _ratePerMinute;
@@ -42,6 +45,9 @@ class _CallingScreenState extends State<CallingScreen>
   @override
   void initState() {
     super.initState();
+    _callState = widget.isIncoming
+        ? VoiceCallState.incoming
+        : VoiceCallState.calling;
     _ratePerMinute = ApiService.callRateForNumber(
       ApiService.toE164(widget.toNumber),
     );
@@ -50,7 +56,7 @@ class _CallingScreenState extends State<CallingScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
-    _startRinging();
+    if (!widget.isIncoming) _startRinging();
 
     _callSub = VoiceService.instance.callStateStream.listen((state) {
       if (!mounted) return;
@@ -129,6 +135,16 @@ class _CallingScreenState extends State<CallingScreen>
     // hangUp() emits disconnected → stream listener calls _safePop()
   }
 
+  Future<void> _answerCall() async {
+    try {
+      await TwilioVoice.instance.call.answer();
+    } catch (_) {}
+  }
+
+  Future<void> _declineCall() async {
+    await VoiceService.instance.hangUp();
+  }
+
   @override
   void dispose() {
     _callSub?.cancel();
@@ -204,6 +220,7 @@ class _CallingScreenState extends State<CallingScreen>
                   switch (_callState) {
                     VoiceCallState.calling => 'Calling...',
                     VoiceCallState.ringing => 'Ringing...',
+                    VoiceCallState.incoming => 'Incoming Call',
                     VoiceCallState.connected => 'Connected',
                     VoiceCallState.disconnected => 'Call ended',
                     VoiceCallState.idle => '',
@@ -306,38 +323,60 @@ class _CallingScreenState extends State<CallingScreen>
                 // Controls row
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _CallingButton(
-                        icon: _isSpeakerOn
-                            ? Icons.volume_up_rounded
-                            : Icons.volume_down_rounded,
-                        label: 'Speaker',
-                        size: 64,
-                        isActive: _isSpeakerOn,
-                        onTap: _toggleSpeaker,
-                      ),
-                      _CallingButton(
-                        icon: Icons.call_end_rounded,
-                        label: 'End',
-                        size: 80,
-                        isDestructive: true,
-                        onTap: _endCall,
-                      ),
-                      _CallingButton(
-                        icon: _isMuted
-                            ? Icons.mic_off_rounded
-                            : Icons.mic_rounded,
-                        label: _isMuted ? 'Unmute' : 'Mute',
-                        size: 64,
-                        isActive: _isMuted,
-                        isDisabled: _callState != VoiceCallState.connected,
-                        onTap: _toggleMute,
-                      ),
-                    ],
-                  ),
+                  child: _callState == VoiceCallState.incoming
+                      // Answer / Decline buttons for incoming call
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _CallingButton(
+                              icon: Icons.call_end_rounded,
+                              label: 'Decline',
+                              size: 72,
+                              isDestructive: true,
+                              onTap: _declineCall,
+                            ),
+                            _CallingButton(
+                              icon: Icons.call_rounded,
+                              label: 'Answer',
+                              size: 72,
+                              isAnswer: true,
+                              onTap: _answerCall,
+                            ),
+                          ],
+                        )
+                      // Normal in-call controls
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _CallingButton(
+                              icon: _isSpeakerOn
+                                  ? Icons.volume_up_rounded
+                                  : Icons.volume_down_rounded,
+                              label: 'Speaker',
+                              size: 64,
+                              isActive: _isSpeakerOn,
+                              onTap: _toggleSpeaker,
+                            ),
+                            _CallingButton(
+                              icon: Icons.call_end_rounded,
+                              label: 'End',
+                              size: 80,
+                              isDestructive: true,
+                              onTap: _endCall,
+                            ),
+                            _CallingButton(
+                              icon: _isMuted
+                                  ? Icons.mic_off_rounded
+                                  : Icons.mic_rounded,
+                              label: _isMuted ? 'Unmute' : 'Mute',
+                              size: 64,
+                              isActive: _isMuted,
+                              isDisabled: _callState != VoiceCallState.connected,
+                              onTap: _toggleMute,
+                            ),
+                          ],
+                        ),
                 ),
 
                 const SizedBox(height: 22),
@@ -380,6 +419,7 @@ class _CallingButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isActive;
   final bool isDestructive;
+  final bool isAnswer;
   final bool isDisabled;
 
   const _CallingButton({
@@ -389,6 +429,7 @@ class _CallingButton extends StatelessWidget {
     required this.onTap,
     this.isActive = false,
     this.isDestructive = false,
+    this.isAnswer = false,
     this.isDisabled = false,
   });
 
@@ -396,9 +437,11 @@ class _CallingButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final bgColor = isDestructive
         ? Colors.red
-        : isActive
-            ? Colors.white.withOpacity(0.28)
-            : Colors.white.withOpacity(0.1);
+        : isAnswer
+            ? Colors.green
+            : isActive
+                ? Colors.white.withOpacity(0.28)
+                : Colors.white.withOpacity(0.1);
 
     final iconColor =
         isDisabled ? Colors.white.withOpacity(0.22) : Colors.white;

@@ -1,5 +1,6 @@
 import 'package:flag/flag_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flux_virtual/Theme.dart';
@@ -179,6 +180,23 @@ class _NumbersScreenState extends State<NumbersScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const _SearchNumberSheet(),
+    );
+  }
+
+  void _showNumberDetail(String numberId, Map<String, dynamic> data) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NumberDetailSheet(
+        numberId: numberId,
+        data: data,
+        onRenew: () => _renewNumber(numberId, data),
+        shouldShowRenew: _shouldShowRenew(data),
+        isInGracePeriod: _isInGracePeriod(data),
+        statusColor: _getStatusColor(data),
+        statusLabel: _getStatusLabel(data),
+      ),
     );
   }
 
@@ -496,6 +514,7 @@ class _NumbersScreenState extends State<NumbersScreen> {
                               RemixIcons.arrow_right_wide_line,
                               color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                             ),
+                            onTap: () => _showNumberDetail(numbers[index].id, data),
                           ),
 
                           // ✅ show renew button if expired or expiring soon
@@ -543,22 +562,26 @@ class _SearchNumberSheet extends StatefulWidget {
 }
 
 class _SearchNumberSheetState extends State<_SearchNumberSheet> {
-  final List<Map<String, String>> _countries = [
-    {'code': 'US', 'name': 'United States'},
-    {'code': 'GB', 'name': 'United Kingdom'},
-    {'code': 'CA', 'name': 'Canada'},
-    {'code': 'AU', 'name': 'Australia'},
-    {'code': 'DE', 'name': 'Germany'},
-    {'code': 'FR', 'name': 'France'},
-    {'code': 'NL', 'name': 'Netherlands'},
-    {'code': 'SE', 'name': 'Sweden'},
-  ];
+  static const _countryNames = {
+    'US': 'United States', 'CA': 'Canada',   'GB': 'United Kingdom',
+    'AU': 'Australia',     'DE': 'Germany',   'FR': 'France',
+    'NL': 'Netherlands',   'SE': 'Sweden',    'NO': 'Norway',
+    'DK': 'Denmark',       'FI': 'Finland',   'CH': 'Switzerland',
+    'AT': 'Austria',       'BE': 'Belgium',   'IT': 'Italy',
+    'ES': 'Spain',         'PL': 'Poland',    'PT': 'Portugal',
+    'JP': 'Japan',         'IN': 'India',     'BR': 'Brazil',
+    'MX': 'Mexico',        'ZA': 'South Africa', 'KE': 'Kenya',
+    'GH': 'Ghana',         'NG': 'Nigeria',
+  };
+
+  List<Map<String, String>> _countries = [];
+  bool _loadingCountries = true;
 
   String _selectedCountry = 'US';
   String _searchedCountry = 'US';
   List<dynamic> _numbers = [];
   bool _isSearching = false;
-  String? _purchasingNumber; // tracks which number is being purchased
+  String? _purchasingNumber;
   String? _errorMessage;
 
   Future<void> _search() async {
@@ -670,6 +693,39 @@ class _SearchNumberSheetState extends State<_SearchNumberSheet> {
 void initState() {
   super.initState();
   _loadPricing();
+  _loadCountries();
+}
+
+Future<void> _loadCountries() async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .doc('config/countries')
+        .get();
+    final data = snap.data();
+    if (data != null && data['available'] is List) {
+      final codes = List<String>.from(data['available'] as List);
+      if (codes.isNotEmpty && mounted) {
+        setState(() {
+          _countries = codes
+              .map((c) => {'code': c, 'name': _countryNames[c] ?? c})
+              .toList();
+          _selectedCountry = codes.first;
+          _searchedCountry = codes.first;
+          _loadingCountries = false;
+        });
+        return;
+      }
+    }
+  } catch (_) {}
+  if (mounted) {
+    setState(() {
+      _countries = [
+        {'code': 'US', 'name': 'United States'},
+        {'code': 'CA', 'name': 'Canada'},
+      ];
+      _loadingCountries = false;
+    });
+  }
 }
 
 Future<void> _loadPricing() async {
@@ -737,32 +793,43 @@ double _getPrice(String countryCode) {
                         // color: AppColors.darkBrown.withOpacity(0.1),
                       ),
                     ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedCountry,
-                        items: _countries.map((c) {
-                          return DropdownMenuItem(
-                            value: c['code'],
-                            child: Row(
-                              children: [
-                                Flag.fromString(
-                                  c['code']!,
-                                  height: 20,
-                                  width: 30,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  c['name']!,
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ],
+                    child: _loadingCountries
+                        ? const SizedBox(
+                            height: 50,
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
                             ),
-                          );
-                        }).toList(),
-                        onChanged: (val) =>
-                            setState(() => _selectedCountry = val!),
-                      ),
-                    ),
+                          )
+                        : DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedCountry,
+                              items: _countries.map((c) {
+                                return DropdownMenuItem(
+                                  value: c['code'],
+                                  child: Row(
+                                    children: [
+                                      Flag.fromString(
+                                        c['code']!,
+                                        height: 20,
+                                        width: 30,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        c['name']!,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (val) =>
+                                  setState(() => _selectedCountry = val!),
+                            ),
+                          ),
                   ),
                 ),
 
@@ -771,7 +838,7 @@ double _getPrice(String countryCode) {
                 SizedBox(
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: _isSearching ? null : _search,
+                    onPressed: (_isSearching || _loadingCountries) ? null : _search,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.softOrange,
                       foregroundColor: AppColors.white,
@@ -1081,6 +1148,323 @@ class _PurchaseLoadingDialog extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Number Detail Sheet
+// ---------------------------------------------------------------------------
+
+class _NumberDetailSheet extends StatelessWidget {
+  const _NumberDetailSheet({
+    required this.numberId,
+    required this.data,
+    required this.onRenew,
+    required this.shouldShowRenew,
+    required this.isInGracePeriod,
+    required this.statusColor,
+    required this.statusLabel,
+  });
+
+  final String numberId;
+  final Map<String, dynamic> data;
+  final VoidCallback onRenew;
+  final bool shouldShowRenew;
+  final bool isInGracePeriod;
+  final Color statusColor;
+  final String statusLabel;
+
+  static const _countryNames = {
+    'US': 'United States',
+    'GB': 'United Kingdom',
+    'CA': 'Canada',
+    'AU': 'Australia',
+    'DE': 'Germany',
+    'FR': 'France',
+    'NL': 'Netherlands',
+    'SE': 'Sweden',
+    'NG': 'Nigeria',
+    'ZA': 'South Africa',
+    'KE': 'Kenya',
+    'GH': 'Ghana',
+    'IN': 'India',
+    'BR': 'Brazil',
+    'MX': 'Mexico',
+    'JP': 'Japan',
+    'IT': 'Italy',
+    'ES': 'Spain',
+    'PL': 'Poland',
+    'PT': 'Portugal',
+  };
+
+  String _formatDate(dynamic value) {
+    if (value == null) return 'N/A';
+    try {
+      final date = value is Timestamp
+          ? value.toDate()
+          : DateTime.parse(value.toString());
+      return '${date.day} ${_monthName(date.month)} ${date.year}';
+    } catch (_) {
+      return 'N/A';
+    }
+  }
+
+  String _monthName(int m) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return months[m - 1];
+  }
+
+  String _daysText() {
+    final expiresAt = data['expiresAt'];
+    if (expiresAt == null) return '';
+    final date = expiresAt is Timestamp
+        ? expiresAt.toDate()
+        : DateTime.parse(expiresAt.toString());
+    final diff = date.difference(DateTime.now()).inDays;
+    if (diff < 0) return '${diff.abs()} days ago';
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    return 'In $diff days';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final phoneNumber = data['phoneNumber'] as String? ?? '';
+    final isoCountry = data['isoCountry'] as String? ?? 'US';
+    final monthlyRate = (data['monthlyRate'] as num?)?.toDouble() ?? 4999.0;
+    final countryName = _countryNames[isoCountry] ?? isoCountry;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // Flag + phone number + copy button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 12, 0),
+              child: Row(
+                children: [
+                  Flag.fromString(isoCountry, height: 30, width: 46),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      phoneNumber,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: phoneNumber));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Number copied to clipboard'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.copy_rounded, size: 20),
+                    tooltip: 'Copy number',
+                  ),
+                ],
+              ),
+            ),
+
+            // Status chip
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const Divider(height: 1),
+
+            // Detail rows
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  _DetailRow(
+                    icon: Icons.calendar_today_outlined,
+                    label: 'Purchased',
+                    value: _formatDate(data['purchasedAt']),
+                  ),
+                  const SizedBox(height: 18),
+                  _DetailRow(
+                    icon: Icons.event_outlined,
+                    label: 'Expiration Date',
+                    value: '${_formatDate(data['expiresAt'])}  •  ${_daysText()}',
+                    valueColor: statusColor,
+                  ),
+                  const SizedBox(height: 18),
+                  _DetailRow(
+                    icon: Icons.payments_outlined,
+                    label: 'Monthly Rate',
+                    value: '₦${monthlyRate.toStringAsFixed(0)} / month',
+                  ),
+                  const SizedBox(height: 18),
+                  _DetailRow(
+                    icon: Icons.public_outlined,
+                    label: 'Country',
+                    value: countryName,
+                  ),
+                  const SizedBox(height: 18),
+                  const _DetailRow(
+                    icon: Icons.settings_phone_outlined,
+                    label: 'Capabilities',
+                    value: 'SMS  •  Voice Calls',
+                  ),
+                ],
+              ),
+            ),
+
+            // Renew button
+            if (shouldShowRenew)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onRenew();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isInGracePeriod
+                          ? Colors.orange
+                          : AppColors.softOrange,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      isInGracePeriod
+                          ? 'Renew Now — ₦${monthlyRate.toStringAsFixed(0)} (Grace Period)'
+                          : 'Renew — ₦${monthlyRate.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45),
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: valueColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

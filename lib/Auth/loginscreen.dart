@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flux_virtual/Auth/email_verification_screen.dart';
@@ -10,6 +15,7 @@ import 'package:flux_virtual/services/notification_service.dart';
 import 'package:flux_virtual/widget/input_field.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -36,7 +42,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     if (_emailController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
-          
       setState(() => _errorMessage = 'Please fill in all fields');
       return;
     }
@@ -67,8 +72,8 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-        await NotificationService.saveToken(credential.user!.uid);
-        await ApiService.loginNotification();
+      await NotificationService.saveToken(credential.user!.uid);
+      await ApiService.loginNotification();
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -102,11 +107,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _googleSignIn() async {
     try {
-      setState(() => _isLoading = true);
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
 
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
-        setState(() => _isLoading = false);
+        // user cancelled
         return;
       }
 
@@ -140,6 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
+
       await NotificationService.saveToken(userCredential.user!.uid);
       await ApiService.loginNotification();
 
@@ -150,7 +159,94 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+      setState(() => _errorMessage = e.message ?? 'Google sign-in failed');
+    } catch (e) {
+      // PlatformException from google_sign_in or any other error
+      final msg = e.toString();
+      if (!msg.contains('sign_in_canceled') && !msg.contains('canceled')) {
+        setState(() => _errorMessage = 'Google sign-in failed. Please try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+        length, (_) => charset[random.nextInt(charset.length)]).join();
+  }
+
+  String _sha256(String input) {
+    final bytes = utf8.encode(input);
+    return sha256.convert(bytes).toString();
+  }
+
+  Future<void> _appleSignIn() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      final rawNonce = _generateNonce();
+      final nonce = _sha256(rawNonce);
+
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+
+      final oauthCredential = OAuthProvider('apple.com').credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+      );
+
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .set({
+          'firstName': appleCredential.givenName ?? '',
+          'lastName': appleCredential.familyName ?? '',
+          'email': userCredential.user!.email ??
+              appleCredential.email ?? '',
+          'creditBalance': 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await NotificationService.saveToken(userCredential.user!.uid);
+      await ApiService.loginNotification();
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const BottomNavbar()),
+        );
+      }
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code != AuthorizationErrorCode.canceled) {
+        setState(
+            () => _errorMessage = 'Apple sign-in failed. Please try again.');
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _errorMessage = e.message ?? 'Authentication failed');
+    } catch (e) {
+      setState(() => _errorMessage = 'Sign-in failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -159,6 +255,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -187,7 +286,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 40),
 
-              
               if (_errorMessage != null) ...[
                 Container(
                   width: double.infinity,
@@ -207,7 +305,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 16),
               ],
 
-              
               InputField(
                 controller: _emailController,
                 hint: 'Email',
@@ -217,7 +314,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 14),
 
-              
               InputField(
                 controller: _passwordController,
                 hint: 'Password',
@@ -238,29 +334,28 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 12),
 
-             Align(
-  alignment: Alignment.centerRight,
-  child: TextButton(
-    onPressed: () => Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ForgotPasswordScreen(),
-      ),
-    ),
-    child: Text(
-      'Forgot password?',
-      style: TextStyle(
-        color: AppColors.softOrange,
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
-      ),
-    ),
-  ),
-),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ForgotPasswordScreen(),
+                    ),
+                  ),
+                  child: Text(
+                    'Forgot password?',
+                    style: TextStyle(
+                      color: AppColors.softOrange,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
 
               const SizedBox(height: 8),
 
-              
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -279,7 +374,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                          
                             strokeWidth: 2,
                           ),
                         )
@@ -337,9 +431,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Divider(
-                      color: onSurface.withOpacity(0.15),
-                    ),
+                    child: Divider(color: onSurface.withOpacity(0.15)),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -352,15 +444,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   Expanded(
-                    child: Divider(
-                      color: onSurface.withOpacity(0.15),
-                    ),
+                    child: Divider(color: onSurface.withOpacity(0.15)),
                   ),
                 ],
               ),
 
               const SizedBox(height: 16),
 
+              // Google Sign-In
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -379,7 +470,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: onSurface,
-                    backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.surfaceVariant,
                     side: BorderSide(color: onSurface.withOpacity(0.2)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -387,6 +479,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+
+              // Apple Sign-In — iOS/macOS only
+              if (isIOS) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: SignInWithAppleButton(
+                    onPressed: _isLoading ? () {} : _appleSignIn,
+                    borderRadius:
+                        const BorderRadius.all(Radius.circular(14)),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 24),
 
@@ -399,34 +505,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   children: [
                     const TextSpan(
-                      text: 'By clicking "Continue", I have read and agree\nwith the ',
+                      text:
+                          'By clicking "Continue", I have read and agree\nwith the ',
                     ),
                     WidgetSpan(
                       child: GestureDetector(
                         onTap: () => launchUrl(
-                          Uri.parse('https://fluxvirtual.app/privacy-policy'),
+                          Uri.parse(
+                              'https://flux-virtual-privacy-policy.vercel.app'),
                           mode: LaunchMode.externalApplication,
                         ),
                         child: Text(
                           'Privacy Policy',
-                          style: TextStyle(
-                            color: onSurface,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const TextSpan(text: ' and '),
-                    WidgetSpan(
-                      child: GestureDetector(
-                        onTap: () => launchUrl(
-                          Uri.parse('https://flux-virtual-privacy-policy.vercel.app'),
-                          mode: LaunchMode.externalApplication,
-                        ),
-                        child: Text(
-                          'Terms of Service',
                           style: TextStyle(
                             color: onSurface,
                             fontWeight: FontWeight.w600,

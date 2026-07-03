@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -5,9 +7,12 @@ import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/screens/Numbers.dart';
 import 'package:flux_virtual/screens/Profile.dart';
 import 'package:flux_virtual/screens/call.dart';
+import 'package:flux_virtual/screens/calling_screen.dart';
 import 'package:flux_virtual/screens/credit.dart';
 import 'package:flux_virtual/screens/message.dart';
+import 'package:flux_virtual/services/voice_service.dart';
 import 'package:remixicon/remixicon.dart';
+import 'package:twilio_voice/twilio_voice.dart';
 
 class BottomNavbar extends StatefulWidget {
   const BottomNavbar({super.key});
@@ -18,6 +23,8 @@ class BottomNavbar extends StatefulWidget {
 
 class _BottomNavbarState extends State<BottomNavbar> {
   int currentIndex = 0;
+  StreamSubscription<VoiceCallState>? _callSub;
+  bool _callScreenVisible = false;
 
   final List<Widget> pages = [
     const Messages(),
@@ -26,6 +33,66 @@ class _BottomNavbarState extends State<BottomNavbar> {
     const Credit(),
     const Profile(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initVoice();
+  }
+
+  Future<void> _initVoice() async {
+    try {
+      await VoiceService.instance.initialize();
+    } catch (_) {
+      // Not fatal — user can still make outgoing calls; log silently.
+    }
+
+    _callSub = VoiceService.instance.callStateStream.listen((state) {
+      if (!mounted || _callScreenVisible) return;
+
+      final isIncoming = VoiceService.instance.isIncomingCall;
+
+      // Show in-app incoming call screen when the call arrives while
+      // the app is in the foreground.
+      if (state == VoiceCallState.incoming && isIncoming) {
+        _showIncomingCall();
+      }
+
+      // Also handle the case where the user answered from the native
+      // CallKit / Android screen while the app was in the background —
+      // the app comes to foreground already connected.
+      if (state == VoiceCallState.connected && isIncoming) {
+        _showIncomingCall(alreadyConnected: true);
+      }
+    });
+  }
+
+  void _showIncomingCall({bool alreadyConnected = false}) {
+    final activeCall = TwilioVoice.instance.call.activeCall;
+    final callerNumber = activeCall?.from ?? 'Unknown';
+    final toNumber = activeCall?.to ?? '';
+
+    _callScreenVisible = true;
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => CallingScreen(
+              toNumber: callerNumber,
+              fromNumber: toNumber,
+              contactName: callerNumber,
+              autoCall: false,
+              isIncoming: true,
+            ),
+          ),
+        )
+        .then((_) => _callScreenVisible = false);
+  }
+
+  @override
+  void dispose() {
+    _callSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,10 +148,11 @@ class _BottomNavbarState extends State<BottomNavbar> {
                           .snapshots(),
                   builder: (context, snap) {
                     final count = snap.data?.docs.where((doc) {
-                      final d = doc.data() as Map<String, dynamic>;
-                      return d['direction'] == 'inbound' &&
-                          d['read'] != true;
-                    }).length ?? 0;
+                          final d = doc.data() as Map<String, dynamic>;
+                          return d['direction'] == 'inbound' &&
+                              d['read'] != true;
+                        }).length ??
+                        0;
 
                     return Badge(
                       isLabelVisible: count > 0,

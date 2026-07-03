@@ -2,7 +2,7 @@ name: flux_virtual
 description: "A new Flutter project."
 
 publish_to: 'none' 
-version: 1.0.1+7
+version: 1.0.3+9
 
 environment:
   sdk: ^3.11.4
@@ -20,6 +20,7 @@ dependencies:
   cloud_firestore: ^5.0.0
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.0
+  crypto: ^3.0.3
   http: ^1.2.1
   webview_flutter: ^4.7.0
   url_launcher: ^6.3.0

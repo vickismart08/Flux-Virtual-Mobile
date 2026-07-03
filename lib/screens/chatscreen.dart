@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flux_virtual/Theme.dart';
 import 'package:flux_virtual/screens/calling_screen.dart';
 import 'package:flux_virtual/services/api_service.dart';
+import 'package:flux_virtual/widget/pick_number_sheet.dart';
 
 class _PendingMsg {
   final String body;
@@ -34,11 +35,14 @@ class _ChatscreenState extends State<Chatscreen> {
   final _scrollController = ScrollController();
   final List<_PendingMsg> _pendingMsgs = [];
 
+  late String _fromNumber;
+
   bool get _isSending => _pendingMsgs.any((p) => p.sending);
 
   @override
   void initState() {
     super.initState();
+    _fromNumber = widget.fromNumber;
     _markConversationRead();
   }
 
@@ -114,6 +118,13 @@ class _ChatscreenState extends State<Chatscreen> {
     );
   }
 
+  Future<void> _pickFromNumber() async {
+    final picked = await pickActiveNumber(context);
+    if (picked != null && mounted) {
+      setState(() => _fromNumber = picked);
+    }
+  }
+
   Future<void> _send() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -125,7 +136,7 @@ class _ChatscreenState extends State<Chatscreen> {
     try {
       final result = await ApiService.sendSMS(
         to: widget.otherNumber,
-        from: widget.fromNumber,
+        from: _fromNumber,
         body: text,
       );
 
@@ -274,8 +285,8 @@ class _ChatscreenState extends State<Chatscreen> {
             ),
             Text(
               widget.contactName != null
-                  ? '${widget.otherNumber} · From: ${widget.fromNumber}'
-                  : 'From: ${widget.fromNumber}',
+                  ? '${widget.otherNumber} · From: $_fromNumber'
+                  : 'From: $_fromNumber',
               style: TextStyle(
                 fontSize: 11,
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
@@ -287,13 +298,15 @@ class _ChatscreenState extends State<Chatscreen> {
           IconButton(
             icon: const Icon(Icons.call),
             color: Colors.green,
-            onPressed: () {
+            onPressed: () async {
+              final fromNumber = await pickActiveNumber(context);
+              if (fromNumber == null || !mounted) return;
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => CallingScreen(
                     toNumber: widget.otherNumber,
-                    fromNumber: widget.fromNumber,
+                    fromNumber: fromNumber,
                     contactName: widget.contactName ?? widget.otherNumber,
                   ),
                 ),
@@ -528,12 +541,40 @@ class _ChatscreenState extends State<Chatscreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // SMS cost indicator
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 4, right: 4),
-                      child: Text(
+                  // From-number chip + SMS cost
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onTap: _pickFromNumber,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.softOrange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: AppColors.softOrange.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'From: $_fromNumber',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.softOrange,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.expand_more,
+                                  size: 14, color: AppColors.softOrange),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Text(
                         '₦${ApiService.smsRateForNumber(ApiService.toE164(widget.otherNumber))} per message',
                         style: TextStyle(
                           fontSize: 11,
@@ -543,7 +584,7 @@ class _ChatscreenState extends State<Chatscreen> {
                               .withOpacity(0.4),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                   Row(
                     children: [
